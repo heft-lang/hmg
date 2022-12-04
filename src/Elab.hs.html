@@ -1,0 +1,79 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<!-- Created by htmlize-1.57 in css mode. -->
+<html>
+  <head>
+    <title>Elab.hs</title>
+    <style type="text/css">
+    <!--
+      body {
+        font-size: 144%;
+      }
+      .haskell-constructor {
+        /* haskell-constructor-face */
+        color: #228b22;
+      }
+      .haskell-definition {
+        /* haskell-definition-face */
+        color: #0000ff;
+      }
+      .haskell-keyword {
+        /* haskell-keyword-face */
+        color: #a020f0;
+      }
+      .haskell-operator {
+        /* haskell-operator-face */
+        color: #a0522d;
+      }
+      .haskell-type {
+        /* haskell-type-face */
+        color: #228b22;
+      }
+
+      a {
+        color: inherit;
+        background-color: inherit;
+        font: inherit;
+        text-decoration: inherit;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    -->
+    </style>
+  </head>
+  <body>
+    <pre>
+<span class="haskell-keyword">module</span> <span class="haskell-constructor">Elab</span> <span class="haskell-keyword">where</span>
+
+<span class="haskell-keyword">import</span> <span class="haskell-constructor">Free</span>
+<span class="haskell-keyword">import</span> <span class="haskell-constructor">Hefty</span>
+
+<span class="haskell-keyword">type</span> <span class="haskell-type">Elab</span> h f <span class="haskell-operator">=</span> <span class="haskell-type">Alg</span> h (<span class="haskell-type">Free</span> f)
+
+<span class="haskell-definition">elaborate</span> <span class="haskell-operator">::</span> (<span class="haskell-type">HFunctor</span> h, <span class="haskell-type">Functor</span> f)
+          <span class="haskell-operator">=&gt;</span> <span class="haskell-type">Elab</span> h f <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Hefty</span> h a <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Free</span> f a
+<span class="haskell-definition">elaborate</span> <span class="haskell-operator">=</span> hfold return
+
+<span class="haskell-keyword">newtype</span> <span class="haskell-type">Lift</span> f (h <span class="haskell-operator">::</span> <span class="haskell-operator">*</span> <span class="haskell-operator">-&gt;</span> <span class="haskell-operator">*</span>) k <span class="haskell-operator">=</span> <span class="haskell-constructor">Lift</span> (f k)
+  <span class="haskell-keyword">deriving</span> <span class="haskell-constructor">Functor</span>
+
+<span class="haskell-keyword">instance</span> <span class="haskell-type">Functor</span> f <span class="haskell-operator">=&gt;</span> <span class="haskell-type">HFunctor</span> (<span class="haskell-type">Lift</span> f) <span class="haskell-keyword">where</span>
+  hmap <span class="haskell-keyword">_</span> (<span class="haskell-constructor">Lift</span> x) <span class="haskell-operator">=</span> <span class="haskell-constructor">Lift</span> x
+
+<span class="haskell-definition">eLift</span> <span class="haskell-operator">::</span> ( f <span class="haskell-operator">&lt;</span> g ) <span class="haskell-operator">=&gt;</span> <span class="haskell-type">Elab</span> (<span class="haskell-type">Lift</span> f) g
+<span class="haskell-definition">eLift</span> <span class="haskell-operator">=</span> <span class="haskell-constructor">Alg</span> <span class="haskell-operator">$</span> <span class="haskell-operator">\</span> x <span class="haskell-operator">-&gt;</span> <span class="haskell-keyword">case</span> x <span class="haskell-keyword">of</span>
+  <span class="haskell-constructor">Lift</span> x <span class="haskell-operator">-&gt;</span> <span class="haskell-constructor">Do</span> <span class="haskell-operator">$</span> inj x
+
+<span class="haskell-definition">lift0</span> <span class="haskell-operator">::</span> <span class="haskell-keyword">forall</span> f h<span class="haskell-operator">.</span>
+         ( <span class="haskell-type">HFunctor</span> h
+         , <span class="haskell-type">Lift</span> f <span class="haskell-operator">&lt;|</span> h )
+      <span class="haskell-operator">=&gt;</span> (<span class="haskell-type">Hefty</span> h <span class="haskell-constructor">()</span> <span class="haskell-operator">-&gt;</span> f (<span class="haskell-type">Hefty</span> h <span class="haskell-constructor">()</span>)) <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Hefty</span> h <span class="haskell-constructor">()</span>
+<span class="haskell-definition">lift0</span> f <span class="haskell-operator">=</span> <span class="haskell-constructor">Op</span> <span class="haskell-operator">$</span> injH <span class="haskell-operator">$</span> <span class="haskell-constructor">Lift</span> <span class="haskell-operator">$</span> f (return <span class="haskell-constructor">()</span>)
+
+<span class="haskell-definition">lift</span> <span class="haskell-operator">::</span> ( <span class="haskell-type">HFunctor</span> h
+        , <span class="haskell-type">Lift</span> f <span class="haskell-operator">&lt;|</span> h )
+     <span class="haskell-operator">=&gt;</span> ((a <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Hefty</span> h a) <span class="haskell-operator">-&gt;</span> f (<span class="haskell-type">Hefty</span> h a)) <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Hefty</span> h a
+<span class="haskell-definition">lift</span> f <span class="haskell-operator">=</span> <span class="haskell-constructor">Op</span> <span class="haskell-operator">$</span> injH <span class="haskell-operator">$</span> <span class="haskell-constructor">Lift</span> <span class="haskell-operator">$</span> f return
+</pre>
+  </body>
+</html>

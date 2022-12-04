@@ -1,0 +1,120 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<!-- Created by htmlize-1.57 in css mode. -->
+<html>
+  <head>
+    <title>Hefty.hs</title>
+    <style type="text/css">
+    <!--
+      body {
+        color: #000000;
+        background-color: #ffffff;
+      }
+      .comment {
+        /* font-lock-comment-face */
+        color: #b22222;
+      }
+      .comment-delimiter {
+        /* font-lock-comment-delimiter-face */
+        color: #b22222;
+      }
+      .haskell-constructor {
+        /* haskell-constructor-face */
+        color: #228b22;
+      }
+      .haskell-definition {
+        /* haskell-definition-face */
+        color: #0000ff;
+      }
+      .haskell-keyword {
+        /* haskell-keyword-face */
+        color: #a020f0;
+      }
+      .haskell-operator {
+        /* haskell-operator-face */
+        color: #a0522d;
+      }
+      .haskell-type {
+        /* haskell-type-face */
+        color: #228b22;
+      }
+
+      a {
+        color: inherit;
+        background-color: inherit;
+        font: inherit;
+        text-decoration: inherit;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    -->
+    </style>
+  </head>
+  <body>
+    <pre>
+<span class="haskell-keyword">module</span> <span class="haskell-constructor">Hefty</span> <span class="haskell-keyword">where</span>
+
+<span class="haskell-keyword">import</span> <span class="haskell-constructor">Control.Monad</span>
+
+<span class="haskell-keyword">data</span> <span class="haskell-type">Hefty</span> h a
+  <span class="haskell-operator">=</span> <span class="haskell-constructor">Return</span> a
+  <span class="haskell-operator">|</span> <span class="haskell-constructor">Op</span> (h (<span class="haskell-constructor">Hefty</span> h) (<span class="haskell-constructor">Hefty</span> h a))
+
+<span class="haskell-keyword">class</span> (<span class="haskell-keyword">forall</span> f<span class="haskell-operator">.</span> <span class="haskell-type">Functor</span> (h f)) <span class="haskell-operator">=&gt;</span> <span class="haskell-type">HFunctor</span> h <span class="haskell-keyword">where</span>
+  hmap <span class="haskell-operator">::</span> (<span class="haskell-keyword">forall</span> a<span class="haskell-operator">.</span> f a <span class="haskell-operator">-&gt;</span> g a) <span class="haskell-operator">-&gt;</span> h f a <span class="haskell-operator">-&gt;</span> h g a
+
+
+<span class="haskell-keyword">instance</span> <span class="haskell-type">HFunctor</span> h <span class="haskell-operator">=&gt;</span> <span class="haskell-type">Applicative</span> (<span class="haskell-type">Hefty</span> h) <span class="haskell-keyword">where</span> pure <span class="haskell-operator">=</span> <span class="haskell-constructor">Return</span>; (<span class="haskell-operator">&lt;*&gt;</span>) <span class="haskell-operator">=</span> ap
+<span class="haskell-keyword">instance</span> <span class="haskell-type">HFunctor</span> h <span class="haskell-operator">=&gt;</span> <span class="haskell-type">Functor</span> (<span class="haskell-type">Hefty</span> h) <span class="haskell-keyword">where</span> fmap <span class="haskell-operator">=</span> liftM
+<span class="haskell-keyword">instance</span> <span class="haskell-type">HFunctor</span> h <span class="haskell-operator">=&gt;</span> <span class="haskell-type">Monad</span> (<span class="haskell-type">Hefty</span> h) <span class="haskell-keyword">where</span>
+  <span class="haskell-constructor">Return</span> x <span class="haskell-operator">&gt;&gt;=</span> k <span class="haskell-operator">=</span> k x
+  <span class="haskell-constructor">Op</span> f     <span class="haskell-operator">&gt;&gt;=</span> k <span class="haskell-operator">=</span> <span class="haskell-constructor">Op</span> (fmap ((<span class="haskell-operator">=&lt;&lt;</span>) k) f)
+
+<span class="comment-delimiter">-- </span><span class="comment">hfunctor sum
+</span>
+<span class="haskell-keyword">infixr</span> 6 <span class="haskell-operator">&#8853;</span>
+<span class="haskell-keyword">data</span> (h1 <span class="haskell-operator">&#8853;</span> h2) (f <span class="haskell-operator">::</span> <span class="haskell-operator">*</span> <span class="haskell-operator">-&gt;</span> <span class="haskell-operator">*</span>) a <span class="haskell-operator">=</span> <span class="haskell-constructor">LH</span> (h1 f a) <span class="haskell-operator">|</span> <span class="haskell-constructor">RH</span> (h2 f a)
+  <span class="haskell-keyword">deriving</span> <span class="haskell-constructor">Functor</span>
+
+<span class="comment-delimiter">-- </span><span class="comment">hfunctor subsumption
+</span>
+<span class="haskell-keyword">class</span> (h1 <span class="haskell-operator">::</span> (<span class="haskell-operator">*</span> <span class="haskell-operator">-&gt;</span> <span class="haskell-operator">*</span>) <span class="haskell-operator">-&gt;</span> (<span class="haskell-operator">*</span> <span class="haskell-operator">-&gt;</span> <span class="haskell-operator">*</span>)) <span class="haskell-operator">&lt;|</span> h2 <span class="haskell-keyword">where</span>
+  injH  <span class="haskell-operator">::</span> h1 f a <span class="haskell-operator">-&gt;</span> h2 f a
+  projH <span class="haskell-operator">::</span> h2 f a <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Maybe</span> (h1 f a)
+
+<span class="haskell-keyword">instance</span> h <span class="haskell-operator">&lt;|</span> h <span class="haskell-keyword">where</span>
+  injH <span class="haskell-operator">=</span> id
+  projH <span class="haskell-operator">=</span> <span class="haskell-constructor">Just</span>
+
+<span class="haskell-keyword">instance</span> h1 <span class="haskell-operator">&lt;|</span> (h1 <span class="haskell-operator">&#8853;</span> h2) <span class="haskell-keyword">where</span>
+  injH    <span class="haskell-operator">=</span> <span class="haskell-constructor">LH</span>
+  projH x <span class="haskell-operator">=</span> <span class="haskell-keyword">case</span> x <span class="haskell-keyword">of</span> <span class="haskell-constructor">LH</span> x <span class="haskell-operator">-&gt;</span> <span class="haskell-constructor">Just</span> x; <span class="haskell-constructor">RH</span> <span class="haskell-keyword">_</span> <span class="haskell-operator">-&gt;</span> <span class="haskell-constructor">Nothing</span>
+
+<span class="haskell-keyword">instance</span> h1 <span class="haskell-operator">&lt;|</span> h3 <span class="haskell-operator">=&gt;</span> h1 <span class="haskell-operator">&lt;|</span> (h2 <span class="haskell-operator">&#8853;</span> h3) <span class="haskell-keyword">where</span>
+  injH    <span class="haskell-operator">=</span> <span class="haskell-constructor">RH</span> <span class="haskell-operator">.</span> injH
+  projH (<span class="haskell-constructor">LH</span> <span class="haskell-keyword">_</span>) <span class="haskell-operator">=</span> <span class="haskell-constructor">Nothing</span>
+  projH (<span class="haskell-constructor">RH</span> x) <span class="haskell-operator">=</span> projH x
+
+<span class="haskell-keyword">instance</span> (<span class="haskell-type">HFunctor</span> h1, <span class="haskell-type">HFunctor</span> h2) <span class="haskell-operator">=&gt;</span> <span class="haskell-type">HFunctor</span> (h1 <span class="haskell-operator">&#8853;</span> h2) <span class="haskell-keyword">where</span>
+  hmap f (<span class="haskell-constructor">LH</span> x) <span class="haskell-operator">=</span> <span class="haskell-constructor">LH</span> <span class="haskell-operator">$</span> hmap f x
+  hmap f (<span class="haskell-constructor">RH</span> x) <span class="haskell-operator">=</span> <span class="haskell-constructor">RH</span> <span class="haskell-operator">$</span> hmap f x
+
+<span class="haskell-keyword">data</span> <span class="haskell-type">Alg</span> h g <span class="haskell-operator">=</span> <span class="haskell-constructor">Alg</span> { alg <span class="haskell-operator">::</span> <span class="haskell-keyword">forall</span> a<span class="haskell-operator">.</span> h g (g a) <span class="haskell-operator">-&gt;</span> g a }
+
+<span class="haskell-definition">hfold</span> <span class="haskell-operator">::</span> <span class="haskell-keyword">forall</span> g h a<span class="haskell-operator">.</span>
+         <span class="haskell-type">HFunctor</span> h
+      <span class="haskell-operator">=&gt;</span> (<span class="haskell-keyword">forall</span> a<span class="haskell-operator">.</span> a <span class="haskell-operator">-&gt;</span> g a)
+      <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Alg</span> h g
+      <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Hefty</span> h a
+      <span class="haskell-operator">-&gt;</span> g a
+<span class="haskell-definition">hfold</span> gen <span class="haskell-keyword">_</span>   (<span class="haskell-constructor">Return</span> a) <span class="haskell-operator">=</span> gen a
+<span class="haskell-definition">hfold</span> gen a (<span class="haskell-constructor">Op</span> f)   <span class="haskell-operator">=</span> alg a <span class="haskell-operator">$</span> hmap (hfold gen a) (fmap (hfold gen a) f)
+
+(<span class="haskell-definition">&#8853;</span>) <span class="haskell-operator">::</span> <span class="haskell-type">Alg</span> h1 g <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Alg</span> h2 g <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Alg</span> (h1 <span class="haskell-operator">&#8853;</span> h2) g
+a1 <span class="haskell-definition">&#8853;</span> a2 <span class="haskell-operator">=</span> <span class="haskell-constructor">Alg</span> <span class="haskell-operator">$</span> <span class="haskell-operator">\</span> x <span class="haskell-operator">-&gt;</span> <span class="haskell-keyword">case</span> x <span class="haskell-keyword">of</span>
+  <span class="haskell-constructor">LH</span> x <span class="haskell-operator">-&gt;</span> alg a1 x
+  <span class="haskell-constructor">RH</span> x <span class="haskell-operator">-&gt;</span> alg a2 x
+
+</pre>
+  </body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<!-- Created by htmlize-1.57 in css mode. -->
+<html>
+  <head>
+    <title>Except.hs</title>
+    <style type="text/css">
+    <!--
+      body {
+        color: #000000;
+        background-color: #ffffff;
+      }
+      .comment {
+        /* font-lock-comment-face */
+        color: #b22222;
+      }
+      .comment-delimiter {
+        /* font-lock-comment-delimiter-face */
+        color: #b22222;
+      }
+      .haskell-constructor {
+        /* haskell-constructor-face */
+        color: #228b22;
+      }
+      .haskell-definition {
+        /* haskell-definition-face */
+        color: #0000ff;
+      }
+      .haskell-keyword {
+        /* haskell-keyword-face */
+        color: #a020f0;
+      }
+      .haskell-operator {
+        /* haskell-operator-face */
+        color: #a0522d;
+      }
+      .haskell-type {
+        /* haskell-type-face */
+        color: #228b22;
+      }
+
+      a {
+        color: inherit;
+        background-color: inherit;
+        font: inherit;
+        text-decoration: inherit;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    -->
+    </style>
+  </head>
+  <body>
+    <pre>
+<span class="haskell-keyword">module</span> <span class="haskell-constructor">Hefty.Except</span> <span class="haskell-keyword">where</span>
+
+<span class="haskell-keyword">import</span> <span class="haskell-constructor">Free</span>
+<span class="haskell-keyword">import</span> <span class="haskell-constructor">Hefty</span>
+<span class="haskell-keyword">import</span> <span class="haskell-constructor">Elab</span>
+<span class="haskell-keyword">import</span> <span class="haskell-constructor">Algebraic.Abort</span>
+
+<span class="haskell-keyword">data</span> <span class="haskell-type">Except</span> f k
+  <span class="haskell-operator">=</span> forall a<span class="haskell-operator">.</span> <span class="haskell-constructor">Catch</span> (f a) (f a) (a <span class="haskell-operator">-&gt;</span> k)
+  <span class="haskell-operator">|</span> <span class="haskell-constructor">Throw</span>
+
+<span class="haskell-keyword">deriving</span> <span class="haskell-keyword">instance</span> <span class="haskell-keyword">forall</span> f<span class="haskell-operator">.</span> <span class="haskell-type">Functor</span> (<span class="haskell-type">Except</span> f)
+
+<span class="haskell-keyword">instance</span> <span class="haskell-type">HFunctor</span> <span class="haskell-type">Except</span> <span class="haskell-keyword">where</span>
+  hmap f (<span class="haskell-constructor">Catch</span> m1 m2 k) <span class="haskell-operator">=</span> <span class="haskell-constructor">Catch</span> (f m1) (f m2) k
+  hmap <span class="haskell-keyword">_</span> <span class="haskell-constructor">Throw</span> <span class="haskell-operator">=</span> <span class="haskell-constructor">Throw</span>
+
+<span class="haskell-definition">catch</span> <span class="haskell-operator">::</span> <span class="haskell-type">Except</span> <span class="haskell-operator">&lt;|</span> h
+      <span class="haskell-operator">=&gt;</span> <span class="haskell-type">Hefty</span> h a <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Hefty</span> h a <span class="haskell-operator">-&gt;</span> <span class="haskell-type">Hefty</span> h a
+<span class="haskell-definition">catch</span> m1 m2 <span class="haskell-operator">=</span> <span class="haskell-constructor">Op</span> <span class="haskell-operator">$</span> injH <span class="haskell-operator">$</span> <span class="haskell-constructor">Catch</span> m1 m2 <span class="haskell-constructor">Return</span>
+
+<span class="haskell-definition">throw</span> <span class="haskell-operator">::</span> ( <span class="haskell-type">HFunctor</span> h
+         , <span class="haskell-type">Except</span> <span class="haskell-operator">&lt;|</span> h )
+      <span class="haskell-operator">=&gt;</span> <span class="haskell-type">Hefty</span> h a
+<span class="haskell-definition">throw</span> <span class="haskell-operator">=</span> <span class="haskell-constructor">Op</span> (injH <span class="haskell-operator">$</span> <span class="haskell-constructor">Throw</span>)
+
+
+<span class="comment-delimiter">-- </span><span class="comment">elaboration into Abort
+</span>
+<span class="haskell-definition">eExcept</span> <span class="haskell-operator">::</span> <span class="haskell-keyword">forall</span> f<span class="haskell-operator">.</span>
+           ( <span class="haskell-type">Functor</span> f
+           , <span class="haskell-type">Abort</span> <span class="haskell-operator">&lt;</span> f )
+        <span class="haskell-operator">=&gt;</span> <span class="haskell-type">Elab</span> <span class="haskell-type">Except</span> f
+<span class="haskell-definition">eExcept</span> <span class="haskell-operator">=</span> <span class="haskell-constructor">Alg</span> <span class="haskell-operator">$</span> <span class="haskell-operator">\</span> x <span class="haskell-operator">-&gt;</span> <span class="haskell-keyword">case</span> x <span class="haskell-keyword">of</span>
+  <span class="haskell-constructor">Catch</span> m1 m2 k <span class="haskell-operator">-&gt;</span> <span class="haskell-keyword">do</span>
+    v <span class="haskell-operator">&lt;-</span> hup hAbort m1
+    <span class="haskell-keyword">case</span> v <span class="haskell-keyword">of</span>
+      <span class="haskell-constructor">Just</span> x <span class="haskell-operator">-&gt;</span> k x
+      <span class="haskell-constructor">Nothing</span> <span class="haskell-operator">-&gt;</span> m2 <span class="haskell-operator">&gt;&gt;=</span> k
+  <span class="haskell-constructor">Throw</span> <span class="haskell-operator">-&gt;</span> <span class="haskell-constructor">Do</span> <span class="haskell-operator">$</span> inj <span class="haskell-operator">$</span> <span class="haskell-constructor">Abort</span>
+
+</pre>
+  </body>
+</html>
