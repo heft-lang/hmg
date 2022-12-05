@@ -26,7 +26,8 @@ type Ty = Term Int
 -- Type constructors
 numT = Term "Num" []
 funT s t = Term "->" [s, t]
-schemeT xs t = Term "∀" (map Const xs ++ [t])
+schemeT xs t | length xs > 0 = Term "∀" (map Const xs ++ [t])
+             | otherwise = t
 
 -- Type context
 type Ctx = [(String, Ty)]
