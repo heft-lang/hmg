@@ -63,9 +63,13 @@ tc :: ( Functor f
    => MLy -> Ctx -> Ty -> Free f ()
 tc (Num _) _ t = conv t numT
 tc (Plus e1 e2) ctx t = do
+  t1 <- exists
+  t2 <- exists
   conv t numT
-  tc e1 ctx numT
-  tc e2 ctx numT
+  tc e1 ctx t1
+  conv t1 numT
+  tc e2 ctx t2
+  conv t2 numT
 tc (Abs x b) ctx t = do
   s <- exists
   t' <- exists
@@ -101,7 +105,7 @@ runTC e =
   in case x of
     Left s -> Left s
     Right (Left (UnificationError t1 t2)) -> Left $ "Unification error: " ++ show t1 ++ " != " ++ show t2
-    Right (Right (_, u)) -> Right $ projTermVar u 0
+    Right (Right (_, u)) -> Right $ inspectVar u 0
 
 
 {-
