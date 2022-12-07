@@ -63,8 +63,9 @@ query s re po ad = Do $ inj $ Query s re po ad $ Pure
 type Sc = Int
 
 data Graph l d
-  = Graph { scopes :: Sc
-          , entries :: Sc -> [(l, Either Sc d)] }
+  = Graph { scopes  :: Sc
+          , entries :: Sc -> [(l, Either Sc d)]
+          , clos    :: Sc -> [l] }
 
 instance (Show l, Show d) => Show (Graph l d) where
   show g =
@@ -73,11 +74,11 @@ instance (Show l, Show d) => Show (Graph l d) where
       [show s ++ ": " ++ show (entries g s) | s <- [0..scopes g]]
 
 emptyGraph :: Graph l d
-emptyGraph = Graph 0 (const [])
+emptyGraph = Graph 0 (const []) (const [])
 
 addScope :: Graph l d -> (Sc, Graph l d)
-addScope g = let sc = scopes g
-  in (sc + 1, Graph (sc + 1) (entries g))
+addScope g = let sc' = scopes g + 1
+  in (sc', g { scopes = sc' })
 
 addEdge :: ( Eq l
            , Show l )
@@ -85,7 +86,9 @@ addEdge :: ( Eq l
 addEdge g s l s' =
   if s <= scopes g
   then if s' <= scopes g
-       then let edges = entries g s
+       then if l `elem` clos g s
+            then Left $ "Monotonicity error: the scope " ++ show s ++ " has already been queried for labels " ++ show l
+            else let edges = entries g s
             in if (null edges)
                then Right $ rawAdd g s l s'
                else case lookup l edges of
@@ -96,11 +99,9 @@ addEdge g s l s' =
   else Left $ "Invalid scope: " ++ show s
   where
     rawAdd g s l s' =
-      Graph
-        (scopes g)
-        (\ sc -> if sc == s
-          then (l, Left s'):entries g s
-          else entries g sc)
+      g { entries = \ sc -> if sc == s
+                            then (l, Left s'):entries g s
+                            else entries g sc }
 
 addSink :: ( Eq l
            , Eq d
@@ -109,7 +110,9 @@ addSink :: ( Eq l
         => Graph l d -> Sc -> l -> d -> Either String (Graph l d)
 addSink g s l d =
   if s <= scopes g
-  then case sinksOf g s of
+  then if l `elem` clos g s
+       then Left $ "Monotonicity error: the scope " ++ show s ++ " has already been queried for labels " ++ show l
+       else case sinksOf g s of
          [] -> Right $ rawAdd g s l d
          sinks ->
            if (l,d) `elem` sinks
@@ -118,11 +121,9 @@ addSink g s l d =
   else Left $ "Invalid scope: " ++ show s
   where
     rawAdd g s l d =
-      Graph
-        (scopes g)
-        (\ sc -> if sc == s
-          then (l, Right d):entries g s
-          else entries g sc)
+      g { entries = \ sc -> if sc == s
+                            then (l, Right d):entries g s
+                            else entries g sc }
 
 sinksOf :: Graph l d -> Sc -> [(l, d)]
 sinksOf g sc = concat
@@ -141,10 +142,15 @@ edgesOf g sc = concat
              $ entries g sc
 
 execQuery :: ( Show d , Show l , Eq l )
-          => Graph l d -> Sc -> RE l -> (Path s l -> Path s l -> Bool) -> (d -> Bool) -> [(d, l, Path s l)]
-execQuery g sc re po ad = do
-  let ps = findAll g sc re ad (Stop sc)
-  shortest po ps
+          => Graph l d
+          -> Sc
+          -> RE l
+          -> (Path s l -> Path s l -> Bool)
+          -> (d -> Bool)
+          -> (Graph l d, [(d, l, Path s l)])
+execQuery g sc re po ad =
+  let (g', ps) = findAll g sc re ad (Stop sc)
+  in (g', shortest po ps)
   where
     shortest :: (Path s l -> Path s l -> Bool) -> [(d, l, Path s l)] -> [(d, l, Path s l)]
     shortest _  [] = []
@@ -159,24 +165,32 @@ execQuery g sc re po ad = do
           else go (d, l, p) a dps
         
     
-    findAll :: (Show l, Show d, Eq l) => Graph l d -> Sc -> RE l -> (d -> Bool) -> Path s l -> [(d, l, Path s l)]
-    findAll g sc re ad p = 
+    findAll :: (Show l, Show d, Eq l)
+            => Graph l d -> Sc -> RE l -> (d -> Bool) -> Path s l -> (Graph l d, [(d, l, Path s l)])
+    findAll g sc re ad p =
       if isEmpty re
-      then map (\ (l, d) -> (d, l, p))
-         $ filter (\ (_, d) -> ad d) $ sinksOf g sc
-      else
-        concat
-        $ map
-            (\ l ->
-                ( concat
-                $ map (\ (_, r) -> case r of
-                          Left sc' ->
-                            if inPath sc' p -- avoid cyclic paths
-                            then []
-                            else findAll g sc' (derive l re) ad (Step sc' l p)
-                          Right d -> if (ad d) then [(d, l, p)] else [])
-                $ filter (\ (l', _) -> l' == l) (entries g sc) ))
-            (frontier re)
+      then ( g
+           , map (\ (l, d) -> (d, l, p))
+           $ filter (\ (_, d) -> ad d) $ sinksOf g sc )
+      else let fr = frontier re
+               g' = g { clos = \ sc' -> if sc == sc'
+                        then fr `union` clos g sc
+                        else clos g sc' }
+      in foldr
+           (\ l (g', rs) ->
+               ( foldr
+                   (\ (_, r) (g', rs') -> case r of
+                       Left sc' ->
+                         if inPath sc' p -- avoid cyclic paths
+                         then (g', rs')
+                         else
+                           let (g'', rs'') = findAll g' sc' (derive l re) ad (Step sc' l p)
+                           in (g'', rs' ++ rs'')
+                       Right d -> if (ad d) then (g', (d, l, p):rs') else (g', rs'))
+                   (g', rs)
+               $ filter (\ (l', _) -> l' == l) (entries g sc) ))
+           (g', [])
+           fr
 
 
 hScope :: ( Eq l, Show l
@@ -199,7 +213,7 @@ hScope = Handler_
           Left s -> err s
           Right g' -> k g'
       Query sc re po ad k ->
-        let rs = execQuery g sc re po ad
-        in k (map (\ (d,_,_) -> d) rs) g)
+        let (g', rs) = execQuery g sc re po ad
+        in k (map (\ (d,_,_) -> d) rs) g')
 
 
