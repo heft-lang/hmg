@@ -1,5 +1,7 @@
 module Free.Logic.Equals where
 
+-- import Debug.Trace
+
 import Free
 import Hefty
 import Elab
@@ -48,76 +50,65 @@ data UErr trm
 -- A unification map maps variables to terms
 type UMap c = Map.Map Int (Term c)
 
--- Project a term without any free variables; or fail
+-- Unification yields a unification map or errs
 -- TODO: no occurs check
-projTerm :: UMap c -> Int -> Maybe (Term c)
-projTerm u i = do
-  Map.lookup i u >>= foldTerm
-    (return . Const)
-    (projTerm u)
-    (\ s' tsm -> do
-        ts' <- mapM id tsm
-        return $ Term s' ts')
+unify :: (Eq c, Show c) => Term c -> Term c -> UMap c -> Either (UErr (Term c)) (UMap c)
+unify (Var i) c u | c /= Var i = if Map.member i u
+                                 then unify (u Map.! i) c (Map.update (const Nothing) i u)
+                                 else Right
+                                    $ Map.alter (const $ Just c) i
+                                    $ Map.map (substIn i c) u
+                  | otherwise = Right $ u
+unify c (Var i) u = unify (Var i) c u
+unify (Const c1) t2 u | t2 == Const c1 = Right u
+                      | otherwise = Left $ UnificationError (Const c1) t2
+unify t1 (Const c2) u | t1 == Const c2 = Right u
+                      | otherwise = Left $ UnificationError t1 (Const c2)
+unify (Term s1 as1) (Term s2 as2) u | s1 /= s2 || length as1 /= length as2 =
+                                      Left $ UnificationError (Term s1 as1) (Term s2 as2)
+                                    | otherwise = foldr
+                                      (\ (t1, t2) ru -> do
+                                          u' <- ru
+                                          unify t1 t2 u')
+                                      (Right u)
+                                      (zip as1 as2)
+
+
+-- -- Project a term without any free variables; or fail
+-- -- TODO: no occurs check
+-- projTerm :: UMap c -> Int -> Maybe (Term c)
+-- projTerm u i = do
+--   Map.lookup i u >>= foldTerm
+--     (return . Const)
+--     (projTerm u)
+--     (\ s' tsm -> do
+--         ts' <- mapM id tsm
+--         return $ Term s' ts')
 
 -- Project a term that may contain free variables
 -- TODO: no occurs check
-projTermVar :: UMap c -> Int -> Term c
-projTermVar u i = case Map.lookup i u of
+inspectVar :: UMap c -> Int -> Term c
+inspectVar u i = case Map.lookup i u of
   Just t -> foldTerm
     Const
-    (projTermVar u)
+    (inspectVar u)
     Term
     t
   Nothing -> Var i
 
--- Merge overlapping variables by unifying them
--- TODO: no occurs check
-merge :: Eq c => UMap c -> UMap c -> Either (UErr (Term c)) (UMap c)
-merge m1 m2 = do
-  let i = Map.intersectionWith (,) m1 m2
-  m <- Map.foldrWithKey
-         (\ k (t1, t2) c0 -> do
-             m' <- unify t1 t2
-             m0' <- c0
-             return $ m' `Map.union` ((Map.singleton k t1) `Map.union` m0'))
-         (return Map.empty)
-         i
-  return $ m `Map.union` (m1 `Map.union` m2)
-
--- Shorthand
-merges :: Eq c => [UMap c] -> Either (UErr (Term c)) (UMap c)
-merges = foldr (\ m c -> do m' <- c; merge m m') (return Map.empty)
-
--- Unification yields a unification map or errs
--- TODO: no occurs check
-unify :: Eq c => Term c -> Term c -> Either (UErr (Term c)) (UMap c)
-unify (Var i) c | c /= Var i = Right $ Map.fromList [(i, c)]
-                | otherwise = Right $ Map.empty
-unify c (Var i) = unify (Var i) c
-unify (Const c1) t2 | t2 == Const c1 = Right Map.empty
-                    | otherwise = Left $ UnificationError (Const c1) t2
-unify t1 (Const c2) | t1 == Const c2 = Right Map.empty
-                    | otherwise = Left $ UnificationError t1 (Const c2)
-unify (Term s1 as1) (Term s2 as2) | s1 /= s2 || length as1 /= length as2 =
-                                    Left $ UnificationError (Term s1 as1) (Term s2 as2)
-                                  | otherwise = do
-  m1s <- mapM (uncurry unify) (zip as1 as2)
-  merges m1s
-
 
 hEquals :: ( Eq c
+           , Show c
            , Functor f' )
         => Handler_ (Equals (Term c)) a (UMap c) f' (Either (UErr (Term c)) (a, UMap c))
 hEquals = Handler_ {
     ret_ = \ x m -> return $ Right (x, m)
   , hdl_ = \ f m -> case f of
       Equals t1 t2 k ->
-        case unify t1 t2 of
-          Right m' -> case merge m m' of
-            Right m'' -> k m''
-            Left err -> return $ Left err
+        case unify t1 t2 m of
+          Right m' -> k m'
           Left err -> return $ Left err
       Inspect t k ->
-        k (foldTerm Const (projTermVar m) Term t) m
+        k (foldTerm Const (inspectVar m) Term t) m
   }
 

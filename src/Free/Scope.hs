@@ -1,19 +1,37 @@
 module Free.Scope where
 
+-- import Debug.Trace
+
 import Free
 import Free.Error
 
 import Data.Regex
+import Data.List
+
+-- Paths
 
 data Path s l
   = Stop Sc
   | Step Sc l (Path s l)
+  deriving Show
+
+inPath :: Sc -> Path s l -> Bool
+inPath sc (Stop sc') = sc == sc'
+inPath sc (Step sc' _ p) = sc == sc' || inPath sc p
+
+lenPath :: Path s l -> Int
+lenPath (Stop _) = 0
+lenPath (Step _ _ p) = 1 + lenPath p
+
+
+-- Operations
 
 data Scope s l d k
   = New (s -> k)
   | Edge s l s k
   | Sink s l d k
   | Query s (RE l) (Path s l -> Path s l -> Bool) (d -> Bool) ([d] -> k)
+  deriving Functor
 
 new :: forall s l d f.
        Scope s l d < f
@@ -44,26 +62,36 @@ query s re po ad = Do $ inj $ Query s re po ad $ Pure
 
 type Sc = Int
 
-data Graph l d = Graph { scopes :: Sc
-                       , entries :: Sc -> Maybe [(l, Either Sc d)] }
+data Graph l d
+  = Graph { scopes :: Sc
+          , entries :: Sc -> [(l, Either Sc d)] }
+
+instance (Show l, Show d) => Show (Graph l d) where
+  show g =
+    intercalate
+      "\n"
+      [show s ++ ": " ++ show (entries g s) | s <- [0..scopes g]]
+
+emptyGraph :: Graph l d
+emptyGraph = Graph 0 (const [])
 
 addScope :: Graph l d -> (Sc, Graph l d)
 addScope g = let sc = scopes g
-  in (sc, Graph (sc + 1) (entries g))
+  in (sc + 1, Graph (sc + 1) (entries g))
 
 addEdge :: ( Eq l
            , Show l )
         => Graph l d -> Sc -> l -> Sc -> Either String (Graph l d)
 addEdge g s l s' =
-  if s < scopes g
-  then if s' < scopes g
-       then case entries g s of
-              Nothing -> Right $ rawAdd g s l s'
-              Just edges ->
-                case lookup l edges of
-                  Nothing -> Right $ rawAdd g s l s'
-                  Just _ ->
-                    Left $ "Error: scope " ++ show s ++ " already has an edge labeled " ++ show l
+  if s <= scopes g
+  then if s' <= scopes g
+       then let edges = entries g s
+            in if (null edges)
+               then Right $ rawAdd g s l s'
+               else case lookup l edges of
+                      Nothing -> Right $ rawAdd g s l s'
+                      Just _ ->
+                        Left $ "Error: scope " ++ show s ++ " already has an edge labeled " ++ show l
        else Left $ "Invalid scope: " ++ show s'
   else Left $ "Invalid scope: " ++ show s
   where
@@ -71,7 +99,7 @@ addEdge g s l s' =
       Graph
         (scopes g)
         (\ sc -> if sc == s
-          then maybe (Just [(l, Left s')]) (\ edges -> Just $ (l, Left s'):edges) (entries g s)
+          then (l, Left s'):entries g s
           else entries g sc)
 
 addSink :: ( Eq l
@@ -80,7 +108,7 @@ addSink :: ( Eq l
            , Show l )
         => Graph l d -> Sc -> l -> d -> Either String (Graph l d)
 addSink g s l d =
-  if s < scopes g
+  if s <= scopes g
   then case sinksOf g s of
          [] -> Right $ rawAdd g s l d
          sinks ->
@@ -93,30 +121,26 @@ addSink g s l d =
       Graph
         (scopes g)
         (\ sc -> if sc == s
-          then maybe (Just [(l, Right d)]) (\ edges -> Just $ (l, Right d):edges) (entries g s)
+          then (l, Right d):entries g s
           else entries g sc)
 
 sinksOf :: Graph l d -> Sc -> [(l, d)]
 sinksOf g sc = concat
-             $ maybe [] (map (\ (l, e) -> either
-                               (const [])
-                               (\ e -> [(l, e)])
-                               e))
+             $ map (\ (l, e) -> either
+                     (const [])
+                     (\ e -> [(l, e)])
+                     e)
              $ entries g sc
 
 edgesOf :: Graph l d -> Sc -> [(l, Sc)]
 edgesOf g sc = concat
-             $ maybe [] (map (\ (l, e) -> either
-                               (\ sc' -> [(l, sc')])
-                               (const [])
-                               e))
+             $ map (\ (l, e) -> either
+                     (\ sc' -> [(l, sc')])
+                     (const [])
+                     e)
              $ entries g sc
 
-inPath :: Sc -> Path s l -> Bool
-inPath sc (Stop sc') = sc == sc'
-inPath sc (Step sc' _ p) = sc == sc' || inPath sc p
-
-execQuery :: Eq l
+execQuery :: ( Show d , Show l , Eq l )
           => Graph l d -> Sc -> RE l -> (Path s l -> Path s l -> Bool) -> (d -> Bool) -> [(d, l, Path s l)]
 execQuery g sc re po ad = do
   let ps = findAll g sc re ad (Stop sc)
@@ -135,21 +159,23 @@ execQuery g sc re po ad = do
           else go (d, l, p) a dps
         
     
-    findAll :: Eq l => Graph l d -> Sc -> RE l -> (d -> Bool) -> Path s l -> [(d, l, Path s l)]
-    findAll g sc re ad p =
+    findAll :: (Show l, Show d, Eq l) => Graph l d -> Sc -> RE l -> (d -> Bool) -> Path s l -> [(d, l, Path s l)]
+    findAll g sc re ad p = 
       if isEmpty re
       then map (\ (l, d) -> (d, l, p))
-           $ filter (\ (_, d) -> ad d) $ sinksOf g sc
+         $ filter (\ (_, d) -> ad d) $ sinksOf g sc
       else
         concat
         $ map
             (\ l ->
                 ( concat
-                $ map (\ (_, sc') ->
-                         if inPath sc' p -- avoid cyclic paths
-                         then []
-                         else findAll g sc' re ad (Step sc' l p))
-                $ filter (\ (l', _) -> l' == l) (edgesOf g sc) ))
+                $ map (\ (_, r) -> case r of
+                          Left sc' ->
+                            if inPath sc' p -- avoid cyclic paths
+                            then []
+                            else findAll g sc' (derive l re) ad (Step sc' l p)
+                          Right d -> if (ad d) then [(d, l, p)] else [])
+                $ filter (\ (l', _) -> l' == l) (entries g sc) ))
             (frontier re)
 
 
