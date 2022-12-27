@@ -6,10 +6,7 @@ import Elab
 
 data Or k
   = Or (Bool -> k)
-  deriving Functor
-
-data Bot k
-  = Bot
+  | Bot
   deriving Functor
 
 orL :: Or < f => Free f a -> Free f a -> Free f a
@@ -24,34 +21,33 @@ orH k1 k2 = liftH $ \ k -> Or $ \case
   True  -> k1 >>= k
   False -> k2 >>= k
 
-bot :: Bot < f => Free f a
+bot :: Or < f => Free f a
 bot = Do $ inj $ Bot
 
-botH :: Lift Bot <| h => Hefty h a
+botH :: Lift Or <| h => Hefty h a
 botH = liftH $ const $ Bot
 
-
-hChoice :: Functor f'
-        => Handler Or a f' [a]
-hChoice = Handler {
+hOr :: Functor f'
+    => Handler Or a f' [a]
+hOr = Handler {
     ret = \ x -> return [x]
   , hdl = \case
       Or k -> do
         xs <- k True
         ys <- k False
         return (xs ++ ys)
+      Bot -> return []
   }
 
-type LogicOr = Or + Bot
-
-hOrBot :: Functor f'
-       => Handler LogicOr a f' [a]
-hOrBot = Handler {
-    ret = \ x -> return [x]
+hOrLeft :: Functor f'
+        => Handler Or a f' (Maybe a)
+hOrLeft = Handler {
+    ret = return . Just
   , hdl = \case
-      L (Or k) -> do
-        xs <- k True
-        ys <- k False
-        return (xs ++ ys)
-      R Bot -> return []
+      Or k -> do
+        x <- k True
+        case x of
+          Just v -> return (Just v)
+          Nothing -> k False
+      Bot -> return Nothing
   }
