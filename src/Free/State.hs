@@ -14,7 +14,7 @@ get = Do $ inj $ Get Pure
 
 hState :: Functor f => s -> Free (State s + f) a -> Free f (s, a)
 hState = flip $ handle_ $ Handler_
-  (\ x s -> (s, x))
+  (\ x s -> return (s, x))
   (\ op s -> case op of
       (Put s k) -> k s
       (Get k)   -> k s s)
