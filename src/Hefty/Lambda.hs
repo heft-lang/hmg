@@ -57,3 +57,19 @@ eLambdaCBN = Alg $ \ x -> case x of
   Lambda body   k -> k (Fun body)
   Var x         k -> x >>= k
   Apply fun arg k -> (app fun arg) >>= k
+
+
+-- -- call-by-need interpretation
+
+-- newtype Thunk f a = Thunk { force :: Int }
+
+-- eLambdaCBN' :: forall f.
+--                Functor f
+--             => Elab (Lambda (Thunk f) (Fun f)) f
+-- eLambdaCBN' = Alg $ \ x -> case x of
+--   Lambda body   k -> k (Fun body)
+--   Var x         k -> case force x of
+--     Left m  -> _
+--     Right v -> k v
+--   Apply fun arg k -> _
+
