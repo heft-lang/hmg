@@ -3,6 +3,9 @@ module Hefty.Lambda where
 import Hefty
 import Free
 import Elab
+import Unsafe.Coerce
+
+import Free.State
 
 data Lambda c fun f k
   = forall t1 t2. Lambda (c t1 -> f t2)        (fun (c t1) t2 -> k)
@@ -59,17 +62,41 @@ eLambdaCBN = Alg $ \ x -> case x of
   Apply fun arg k -> (app fun arg) >>= k
 
 
--- -- call-by-need interpretation
+-- call-by-need interpretation
 
--- newtype Thunk f a = Thunk { force :: Int }
+newtype Thunk f a = Thunk { force :: (Int, Free f a) }
 
--- eLambdaCBN' :: forall f.
---                Functor f
---             => Elab (Lambda (Thunk f) (Fun f)) f
--- eLambdaCBN' = Alg $ \ x -> case x of
---   Lambda body   k -> k (Fun body)
---   Var x         k -> case force x of
---     Left m  -> _
---     Right v -> k v
---   Apply fun arg k -> _
+data Pack = forall v. Pack (Maybe v)
+
+update :: Thunk f v -> v -> [Pack] -> [Pack]
+update _ _ [] = undefined
+update (Thunk (0, _)) v (_:p) = Pack (Just v) : p
+update (Thunk (i, m)) v (t:p) | i > 0 = t:update (Thunk (i-1,m)) v p
+                              | otherwise = undefined
+
+insert :: Free f v -> [Pack] -> (Thunk f v, [Pack])
+insert m p = (Thunk (length p, m), p ++ [Pack Nothing])
+
+eLambdaCBN' :: forall f.
+               ( Functor f
+               , State [Pack] < f )
+            => Elab (Lambda (Thunk f) (Fun f)) f
+eLambdaCBN' = Alg $ \ x -> case x of
+  Lambda body   k -> k (Fun body)
+  Var x         k -> do
+    (st :: [Pack]) <- get
+    let (i, m) = force x
+    case st !! i of
+      Pack Nothing  -> do
+        v <- m
+        let v' = unsafeCoerce v
+        (st' :: [Pack]) <- get
+        put (update x v' st')
+        k v'
+      Pack (Just v) -> k (unsafeCoerce v)
+  Apply fun arg k -> do
+    st <- get
+    let (t, st') = insert arg st
+    put st'
+    (app fun t) >>= k
 

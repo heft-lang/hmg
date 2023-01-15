@@ -12,8 +12,9 @@ get :: State s < f => Free f s
 get = Do $ inj $ Get Pure
 
 
-hState :: Functor f => s -> Free (State s + f) a -> Free f (s, a)
-hState = flip $ handle_ $ Handler_
+hState :: Functor f'
+       => Handler_ (State s) a s f' (s, a)
+hState = Handler_
   (\ x s -> return (s, x))
   (\ op s -> case op of
       (Put s k) -> k s
