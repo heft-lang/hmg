@@ -12,7 +12,8 @@ import Free.Error
 import Free.Logic.Exists
 import Free.Logic.Equals
 import Free.Logic.Generalize
-import Free.Scope
+import Free.Scope hiding (edge, new, sink)
+import qualified Free.Scope as S (edge, new, sink)
 
 import qualified Data.Map as Map
 
@@ -34,6 +35,17 @@ funT s t = Term "->" [s, t]
 schemeT xs t | length xs > 0 = Term "∀" (map Const xs ++ [t])
              | otherwise = t
 
+-- Free variables
+fv :: Term Int -> [Int]
+fv (Const _) = []
+fv (Var i) = [i]
+fv (Term f ts) | f /= "∀" = nub $ concat $ map fv ts
+               | otherwise = let bs = concat $ map c2fv (init ts)
+                 in nub (fv (last ts) \\ bs)
+  where
+    c2fv (Const i) = [i]
+    c2fv _ = []
+
 -- Labels & declarations
 data Label = P | D deriving (Eq, Show)
 data Decl = Decl String Ty deriving (Eq, Show)
@@ -43,14 +55,14 @@ projTy (Decl _ t) = t
 -- scope graph lib configuration/convenience
 wildcard = Atom P `Pipe` Atom D
 
-edge' :: Scope Sc Label Decl < f => Sc -> Label -> Sc -> Free f ()
-edge' = edge @_ @Label @Decl
+edge :: Scope Sc Label Decl < f => Sc -> Label -> Sc -> Free f ()
+edge = S.edge @_ @Label @Decl
 
-new' :: Scope Sc Label Decl < f => Free f Sc
-new' = new @_ @Label @Decl
+new :: Scope Sc Label Decl < f => Free f Sc
+new = S.new @_ @Label @Decl
 
-sink' :: Scope Sc Label Decl < f => Sc -> Label -> Decl -> Free f ()
-sink' = sink @_ @Label @Decl
+sink :: Scope Sc Label Decl < f => Sc -> Label -> Decl -> Free f ()
+sink = S.sink @_ @Label @Decl
 
 instL :: ( Functor f
           , Generalize [Int] Ty < f
@@ -83,9 +95,9 @@ tc (Plus e1 e2) sc t = do
 tc (Abs x b) sc t = do
   s <- exists
   t' <- exists
-  sc' <- new'
-  edge' sc' P sc
-  sink' sc' D (Decl x s)
+  sc' <- new
+  edge sc' P sc
+  sink sc' D (Decl x s)
   tc b sc' t'
   instL t (funT s t')
 tc (Ident x) sc t = do
@@ -111,15 +123,14 @@ tc (Let x e body) sc t = do
   st <- inspect s
   ds <- query
           sc
-          (wildcard `Dot` Atom D)
+          ((Star wildcard) `Dot` Atom D)
           (\ p1 p2 -> lenPath p1 < lenPath p2)
           (\ (_ :: Decl) -> True)
-  let s_fvs = fv st
   let ctx_fvs = concat $ map (\ (Decl _ t) -> fv t) ds
-  let gens = s_fvs \\ ctx_fvs
-  sc' <- new'
-  edge' sc' P sc
-  sink' sc' D (Decl x (schemeT gens st))
+  let gens = fv st \\ ctx_fvs
+  sc' <- new
+  edge sc' P sc
+  sink sc' D (Decl x (schemeT gens st))
   tc body sc' t
 
 
@@ -132,6 +143,7 @@ runTC e =
         $ flip (handle_ hEquals) Map.empty
         $ flip (handle_ hExists) 0
         $ handle (hGeneralize
+                    fv
                     schemeT
                     (\ t -> do
                        t <- inspect t
@@ -161,7 +173,7 @@ runTC e =
 
 {-
 
-> runTC (App (Abs "f" (Let "_" (App (Ident "f") (Num 0)) (Ident "f"))) (Abs "x" (Num 1)))
-Right (Term "->" [Term "Num" [],Term "Num" []])
+> runTC (Let "g" (Abs "y" (Let "f" (Abs "x" $ Ident "y") (Let "_" (App (Ident "f") (Num 0)) (Ident "f")))) (Ident "g"))
+Right (Term "\8704" [Const 7,Term "->" [Var 7,Term "\8704" [Const 5,Term "->" [Var 5,Var 7]]]])
 
 -}

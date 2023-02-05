@@ -23,10 +23,11 @@ instantiate t = Do $ inj $ Instantiate @vars t Pure
 ---------------
 
 hGeneralize :: Functor f'
-            => ([Int] -> Term c -> Term c)
+            => (Term c -> [Int])
+            -> ([Int] -> Term c -> Term c)
             -> (Term c -> Free f' (Term c))
             -> Handler (Generalize [Int] (Term c)) a f' a
-hGeneralize genT instT = Handler {
+hGeneralize fv genT instT = Handler {
     ret = return
   , hdl = \ f -> case f of
       Generalize xs t k ->

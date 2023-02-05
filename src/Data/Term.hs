@@ -1,7 +1,5 @@
 module Data.Term where
 
-import Data.List
-
 data Term c = Const c
             | Var Int
             | Term String [Term c]
@@ -17,12 +15,6 @@ foldTerm :: (c -> b)
 foldTerm genC _ _ (Const c) = genC c
 foldTerm _ genV _ (Var i) = genV i
 foldTerm genC genV alg (Term s ts) = alg s (map (foldTerm genC genV alg) ts)
-
-fv :: Term c -> [Int]
-fv = foldTerm
-  (const [])
-  (\ i -> [i])
-  (\ _ fvs -> nub $ concat fvs)
 
 substIn :: Int -> Term c -> Term c -> Term c
 substIn i t = foldTerm

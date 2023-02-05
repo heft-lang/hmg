@@ -29,6 +29,17 @@ funT s t = Term "->" [s, t]
 schemeT xs t | length xs > 0 = Term "∀" (map Const xs ++ [t])
              | otherwise = t
 
+-- Free variables
+fv :: Term Int -> [Int]
+fv (Const _) = []
+fv (Var i) = [i]
+fv (Term f ts) | f /= "∀" = nub $ concat $ map fv ts
+               | otherwise = let bs = concat $ map c2fv (init ts)
+                 in nub (fv (last ts) \\ bs)
+  where
+    c2fv (Const i) = [i]
+    c2fv _ = []
+
 -- Type context
 type Ctx = [(String, Ty)]
 
@@ -110,9 +121,7 @@ runTC e =
 
 {-
 
-typecheck (Let x e1 e2) = do
-  T ← freeze (typecheck e1)
-  bind x to T in (typecheck e2)
+runTC (Let "g" (Abs "y" (Let "f" (Abs "x" $ Ident "y") (Let "_" (App (Ident "f") (Num 0)) (Ident "f")))) (Ident "g"))
 
 -}
 
