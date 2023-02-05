@@ -11,6 +11,7 @@ import Data.List
 import Free.Error
 import Free.Logic.Exists
 import Free.Logic.Equals
+import Free.Logic.Generalize
 import Free.Scope
 
 import qualified Data.Map as Map
@@ -49,44 +50,32 @@ new' = new @_ @Label @Decl
 sink' :: Scope Sc Label Decl < f => Sc -> Label -> Decl -> Free f ()
 sink' = sink @_ @Label @Decl
 
-conv :: ( Functor f
-      , Exists Ty < f
-      , Equals Ty < f
-      , Error String < f )
-     => Ty -> Ty -> Free f ()
-conv t s = do
-  t <- inspect t
-  s <- inspect s
-  conv' t s
-  where
-    conv' (Term "∀" ts) t =
-      let gens = init ts
-          t'   = last ts
-      in do
-        substs <- mapM
-                    (\ x -> case x of
-                        Const i -> do y <- exists; return (i,y)
-                        _ -> err "Bad quantifier")
-                   gens
-        equals (substsIn substs t') t
-    conv' t s@(Term "∀" _) = conv' s t
-    conv' t s = equals t s
+instL :: ( Functor f
+          , Generalize [Int] Ty < f
+          , Equals Ty < f
+          , Error String < f )
+       => Ty -> Ty -> Free f ()
+instL t1 t2 = do
+  t1' <- trace ("I1:" ++ show t1) $ instantiate @[Int] t1
+  trace ("I2:" ++ show t1') $ equals t1' t2
 
 tc :: ( Functor f
       , Exists Ty < f
       , Equals Ty < f
+      , Generalize [Int] Ty < f
       , Error String < f
       , Scope Sc Label Decl < f )
    => MLy -> Sc -> Ty -> Free f ()
 tc (Num _) _ t = equals t numT
 tc (Plus e1 e2) sc t = do
+  equals t numT
   t1 <- exists
-  t2 <- exists
-  conv t numT
   tc e1 sc t1
-  conv t1 numT
+  instL t1 numT
+
+  t2 <- exists
   tc e2 sc t2
-  conv t2 numT
+  instL t2 numT
 tc (Abs x b) sc t = do
   s <- exists
   t' <- exists
@@ -94,7 +83,7 @@ tc (Abs x b) sc t = do
   edge' sc' P sc
   sink' sc' D (Decl x s)
   tc b sc' t'
-  conv t (funT s t')
+  instL t (funT s t')
 tc (Ident x) sc t = do
   ds <- query
           sc
@@ -110,7 +99,7 @@ tc (App f a) sc t = do
   fun <- exists
   tc f sc fun
   s <- exists
-  conv fun (funT s t)
+  trace ("A1:" ++ show fun) $ instL fun (funT s t)
   tc a sc s
 tc (Let x e body) sc t = do
   s <- exists
@@ -139,11 +128,26 @@ runTC e =
         $ flip (handle_ hScope) emptyGraph
         $ flip (handle_ hEquals) Map.empty
         $ flip (handle_ hExists) 0
+        $ handle (hGeneralize schemeT $ \ t -> do
+                     t <- inspect t
+                     case t of
+                       Term "∀" ts -> let gens = init ts; t' = last ts in do
+                         substs <- mapM
+                                     (\ x -> case x of
+                                         Const i -> do y <- exists; return (i,y)
+                                         _       -> err "Bad quantifier")
+                                     gens
+                         return $ substsIn substs t'
+                       _ -> return (trace ("instT:" ++ show t) $ t))
         ( do t <- exists
-             t' <- exists
-             equals t t'
-             tc e 0 t'
-          :: Free (Exists Ty + Equals Ty + Scope Sc Label Decl + Error String + Nop) () )
+             tc e 0 t
+          :: Free ( Generalize [Int] Ty
+                  + Exists Ty
+                  + Equals Ty
+                  + Scope Sc Label Decl
+                  + Error String
+                  + Nop )
+                  () )
   in case x of
     Left s -> Left s
     Right (Left (UnificationError t1 t2), _) -> Left $ "Unification error: " ++ show t1 ++ " != " ++ show t2
