@@ -28,18 +28,20 @@ data MLy
 -- Types
 type Ty = Term Int
 
--- Type constructors
+-- Type construction
 numT = Term "Num" []
 funT s t = Term "->" [s, t]
 schemeT xs t | length xs > 0 = Term "∀" (map Const xs ++ [t])
              | otherwise = t
 
+-- Labels & declarations
 data Label = P | D deriving (Eq, Show)
 data Decl = Decl String Ty deriving (Eq, Show)
 
-wildcard = Atom P `Pipe` Atom D
-
 projTy (Decl _ t) = t
+
+-- scope graph lib configuration/convenience
+wildcard = Atom P `Pipe` Atom D
 
 edge' :: Scope Sc Label Decl < f => Sc -> Label -> Sc -> Free f ()
 edge' = edge @_ @Label @Decl
@@ -59,6 +61,8 @@ instL t1 t2 = do
   t1' <- instantiate @[Int] t1
   equals t1' t2
 
+
+-- Type checker for an MLy language
 tc :: ( Functor f
       , Exists Ty < f
       , Equals Ty < f
@@ -117,7 +121,6 @@ tc (Let x e body) sc t = do
   edge' sc' P sc
   sink' sc' D (Decl x (schemeT gens st))
   tc body sc' t
-  
 
 
 -- Running the type checker
@@ -128,27 +131,37 @@ runTC e =
         $ flip (handle_ hScope) emptyGraph
         $ flip (handle_ hEquals) Map.empty
         $ flip (handle_ hExists) 0
-        $ handle (hGeneralize schemeT $ \ t -> do
-                     t <- inspect t
-                     case t of
-                       Term "∀" ts -> let gens = init ts; t' = last ts in do
-                         substs <- mapM
-                                     (\ x -> case x of
-                                         Const i -> do y <- exists; return (i,y)
-                                         _       -> err "Bad quantifier")
-                                     gens
-                         return $ substsIn substs t'
-                       _ -> return t)
-        ( do t <- exists
-             tc e 0 t
-          :: Free ( Generalize [Int] Ty
-                  + Exists Ty
-                  + Equals Ty
-                  + Scope Sc Label Decl
-                  + Error String
-                  + Nop )
-                  () )
+        $ handle (hGeneralize
+                    schemeT
+                    (\ t -> do
+                       t <- inspect t
+                       case t of
+                         Term "∀" ts -> let gens = init ts; t' = last ts in do
+                           substs <- mapM
+                                       (\ x -> case x of
+                                           Const i -> do y <- exists; return (i,y)
+                                           _       -> err "Bad quantifier")
+                                       gens
+                           return $ substsIn substs t'
+                         _ -> return t))
+        (do t <- exists
+            tc e 0 t
+        :: Free ( Generalize [Int] Ty
+                + Exists Ty
+                + Equals Ty
+                + Scope Sc Label Decl
+                + Error String
+                + Nop )
+                () )
   in case x of
-    Left s -> Left s
+    Left s                                   -> Left s
     Right (Left (UnificationError t1 t2), _) -> Left $ "Unification error: " ++ show t1 ++ " != " ++ show t2
-    Right (Right (_, u), _) -> Right $ inspectVar u 0
+    Right (Right (_, u), _)                  -> Right $ inspectVar u 0
+
+
+{-
+
+> runTC (App (Abs "f" (Let "_" (App (Ident "f") (Num 0)) (Ident "f"))) (Abs "x" (Num 1)))
+Right (Term "->" [Term "Num" [],Term "Num" []])
+
+-}
