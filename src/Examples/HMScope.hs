@@ -1,6 +1,6 @@
 module Examples.HMScope where
 
-import Debug.Trace
+--import Debug.Trace
 
 import Free
 
@@ -56,8 +56,8 @@ instL :: ( Functor f
           , Error String < f )
        => Ty -> Ty -> Free f ()
 instL t1 t2 = do
-  t1' <- trace ("I1:" ++ show t1) $ instantiate @[Int] t1
-  trace ("I2:" ++ show t1') $ equals t1' t2
+  t1' <- instantiate @[Int] t1
+  equals t1' t2
 
 tc :: ( Functor f
       , Exists Ty < f
@@ -99,7 +99,7 @@ tc (App f a) sc t = do
   fun <- exists
   tc f sc fun
   s <- exists
-  trace ("A1:" ++ show fun) $ instL fun (funT s t)
+  instL fun (funT s t)
   tc a sc s
 tc (Let x e body) sc t = do
   s <- exists
@@ -138,7 +138,7 @@ runTC e =
                                          _       -> err "Bad quantifier")
                                      gens
                          return $ substsIn substs t'
-                       _ -> return (trace ("instT:" ++ show t) $ t))
+                       _ -> return t)
         ( do t <- exists
              tc e 0 t
           :: Free ( Generalize [Int] Ty
