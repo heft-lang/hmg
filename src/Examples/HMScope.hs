@@ -135,11 +135,10 @@ tc (Let x e body) sc t = do
           ((Star wildcard) `Dot` Atom D)
           (\ p1 p2 -> lenPath p1 < lenPath p2)
           (\ (_ :: Decl) -> True)
-  let ctx_fvs = concat $ map (\ (Decl _ t) -> fv t) ds
-  let gens = fv st \\ ctx_fvs
+  st' <- generalize (concat $ map (\ (Decl _ t) -> fv t) ds) st
   sc' <- new
   edge sc' P sc
-  sink sc' D (Decl x (schemeT gens st))
+  sink sc' D (Decl x st')
   tc body sc' t
 
 
