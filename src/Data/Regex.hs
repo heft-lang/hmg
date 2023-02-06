@@ -17,30 +17,30 @@ frontier Empty = []
 frontier Stuck = []
 frontier (Atom l) = [l]
 frontier (Pipe r1 r2) = nub $ frontier r1 ++ frontier r2
-frontier (Dot r1 r2) = if isEmpty r1
-  then if isStrictlyEmpty r1
+frontier (Dot r1 r2) = if possiblyEmpty r1
+  then if definitelyEmpty r1
        then frontier r2
        else frontier r1 ++ frontier r2
   else frontier r1
 frontier (Star r) = frontier r
 
--- Check if regular expression corresponds to the empty language
-isEmpty :: RE l -> Bool
-isEmpty Empty = True
-isEmpty Stuck = False
-isEmpty (Atom _) = False
-isEmpty (Pipe r1 r2) = isEmpty r1 || isEmpty r2
-isEmpty (Dot r1 r2) = isEmpty r1 && isEmpty r2
-isEmpty (Star _) = True
+-- Check if regular expression is possibly the empty language
+possiblyEmpty :: RE l -> Bool
+possiblyEmpty Empty = True
+possiblyEmpty Stuck = False
+possiblyEmpty (Atom _) = False
+possiblyEmpty (Pipe r1 r2) = possiblyEmpty r1 && possiblyEmpty r2
+possiblyEmpty (Dot r1 r2) = possiblyEmpty r1 && possiblyEmpty r2
+possiblyEmpty (Star _) = True
 
--- Check if regular expression strictly corresponds to the empty language
-isStrictlyEmpty :: RE l -> Bool
-isStrictlyEmpty Empty = True
-isStrictlyEmpty Stuck = False
-isStrictlyEmpty (Atom _) = False
-isStrictlyEmpty (Pipe r1 r2) = isStrictlyEmpty r1 || isStrictlyEmpty r2
-isStrictlyEmpty (Dot r1 r2) = isStrictlyEmpty r1 && isStrictlyEmpty r2
-isStrictlyEmpty (Star _) = False -- !
+-- Check if regular expression is definitely the empty language
+definitelyEmpty :: RE l -> Bool
+definitelyEmpty Empty = True
+definitelyEmpty Stuck = False
+definitelyEmpty (Atom _) = False
+definitelyEmpty (Pipe r1 r2) = definitelyEmpty r1 || definitelyEmpty r2
+definitelyEmpty (Dot r1 r2) = definitelyEmpty r1 && definitelyEmpty r2
+definitelyEmpty (Star _) = False -- !
 
 
 -- Brzozowski derivative of regular expression
@@ -53,7 +53,7 @@ derive l (Pipe r1 r2) = case (derive l r1, derive l r2) of
   (Stuck, r2') -> r2'
   (r1', Stuck) -> r1'
   (r1', r2')   -> Pipe r1' r2'
-derive l (Dot r1 r2) = if isStrictlyEmpty r1
+derive l (Dot r1 r2) = if definitelyEmpty r1
   then derive l r2
   else Dot (derive l r1) r2
 derive l (Star r) = Dot (derive l r) (Star r)

@@ -23,6 +23,15 @@ data MLy
 -- Types
 type Ty = Term Int
 
+instance Show Ty where
+  show (Const i) = "α" ++ show i
+  show (Var i) = "α" ++ show i
+  show (Term "∀" ts) = "(∀ " ++ intercalate " " (map show (init ts)) ++ ". " ++ show (last ts) ++ ")"
+  show (Term "->" [t1, t2]) = show t1 ++ " -> " ++ show t2
+  show (Term "Num" []) = "Num"
+  show (Term f ts) = "(" ++ f ++ intercalate " " (map show ts) ++ ")"
+
+
 -- Type constructors
 numT = Term "Num" []
 funT s t = Term "->" [s, t]
