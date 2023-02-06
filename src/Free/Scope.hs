@@ -166,7 +166,7 @@ execQuery g sc re po ad =
     findAll :: (Show l, Show d, Eq l)
             => Graph l d -> Sc -> RE l -> (d -> Bool) -> Path s l -> (Graph l d, [(d, l, Path s l)])
     findAll g sc re ad p =
-      if possiblyEmpty re -- FIXME: search could/(should?) continue
+      if definitelyEmpty re
       then ( g
            , map (\ (l, d) -> (d, l, p))
            $ filter (\ (_, d) -> ad d) $ sinksOf g sc )
@@ -179,7 +179,7 @@ execQuery g sc re po ad =
                ( foldr
                    (\ (_, r) (g', rs') -> case r of
                        Left sc' ->
-                         if inPath sc' p -- avoid cyclic paths
+                         if sc' `inPath` p -- avoid cyclic paths
                          then (g', rs')
                          else
                            let (g'', rs'') = findAll g' sc' (derive l re) ad (Step sc' l p)
