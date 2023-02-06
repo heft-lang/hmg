@@ -116,7 +116,9 @@ tc (Ident x) sc t = do
           (\ p1 p2 -> lenPath p1 < lenPath p2)
           (\ (Decl y _) -> x == y)
   if length ds == 1
-    then equals t (projTy (head ds))
+    then do
+      dt <- instantiate @[Int] (projTy (head ds))
+      equals t dt
     else if length ds == 0
          then err $ "Query failed: unbound identifier " ++ x
          else err $ "Query yielded ambiguous binders for " ++ x
