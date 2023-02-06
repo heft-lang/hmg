@@ -73,15 +73,6 @@ new = S.new @_ @Label @Decl
 sink :: Scope Sc Label Decl < f => Sc -> Label -> Decl -> Free f ()
 sink = S.sink @_ @Label @Decl
 
-instL :: ( Functor f
-          , Generalize [Int] Ty < f
-          , Equals Ty < f
-          , Error String < f )
-       => Ty -> Ty -> Free f ()
-instL t1 t2 = do
-  t1' <- instantiate @[Int] t1
-  equals t1' t2
-
 
 -- Type checker for an MLy language
 tc :: ( Functor f
