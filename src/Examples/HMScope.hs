@@ -94,13 +94,8 @@ tc :: ( Functor f
 tc (Num _) _ t = equals t numT
 tc (Plus e1 e2) sc t = do
   equals t numT
-  t1 <- exists
-  tc e1 sc t1
-  instL t1 numT
-
-  t2 <- exists
-  tc e2 sc t2
-  instL t2 numT
+  tc e1 sc numT
+  tc e2 sc numT
 tc (Abs x b) sc t = do
   s <- exists
   t' <- exists
@@ -108,7 +103,7 @@ tc (Abs x b) sc t = do
   edge sc' P sc
   sink sc' D (Decl x s)
   tc b sc' t'
-  instL t (funT s t')
+  equals t (funT s t')
 tc (Ident x) sc t = do
   ds <- query
           sc
@@ -123,10 +118,8 @@ tc (Ident x) sc t = do
          then err $ "Query failed: unbound identifier " ++ x
          else err $ "Query yielded ambiguous binders for " ++ x
 tc (App f a) sc t = do
-  fun <- exists
-  tc f sc fun
   s <- exists
-  instL fun (funT s t)
+  tc f sc (funT s t)
   tc a sc s
 tc (Let x e body) sc t = do
   s <- exists
