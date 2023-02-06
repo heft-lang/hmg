@@ -182,4 +182,10 @@ Right (Term "\8704" [Const 7,Term "->" [Var 7,Term "\8704" [Const 5,Term "->" [V
 -}
 
 example :: Either String Ty
-example = runTC (Let "g" (Abs "y" (Let "f" (Abs "x" $ Ident "y") (Let "_" (App (Ident "f") (Num 0)) (Ident "f")))) (Ident "g"))
+example = runTC (Let "g" 
+                  (Abs "y" 
+                    (Let "f" 
+                      (Abs "x" 
+                        $ Ident "y") 
+                      (Let "_" (App (Ident "f") (Num 0)) (Ident "f")))) 
+                  (Ident "g"))
