@@ -1,8 +1,9 @@
 module Data.Term where
 
-data Term c = Const c
-            | Var Int
-            | Term String [Term c]
+data Term c
+  = Const c
+  | Var Int
+  | Term String [Term c]
 
 deriving instance Eq c => Eq (Term c)
 deriving instance Show c => Show (Term c)

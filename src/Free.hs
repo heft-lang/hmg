@@ -109,11 +109,10 @@ instance (Functor h, f < g) => f < h + g where
 data Id a = Id { unId :: a } deriving ( Functor , Eq )
 
 instance Monad Id where
-  return = Id
   Id a >>= k = k a
 
 instance Applicative Id where
-  pure = return
+  pure = Id
   (<*>) = ap
 
 deriving instance Show a => Show (Id a)
