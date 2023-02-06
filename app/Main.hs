@@ -1,7 +1,7 @@
 module Main where
 
-import Examples.YieldOut
+import Examples.HMScope
 import Data.List
 
 main :: IO ()
-main = putStrLn $ intercalate "\n" $ testExample
+main = print example
