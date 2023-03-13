@@ -29,7 +29,7 @@ possiblyEmpty :: RE l -> Bool
 possiblyEmpty Empty = True
 possiblyEmpty Stuck = False
 possiblyEmpty (Atom _) = False
-possiblyEmpty (Pipe r1 r2) = possiblyEmpty r1 && possiblyEmpty r2
+possiblyEmpty (Pipe r1 r2) = possiblyEmpty r1 || possiblyEmpty r2
 possiblyEmpty (Dot r1 r2) = possiblyEmpty r1 && possiblyEmpty r2
 possiblyEmpty (Star _) = True
 
@@ -38,9 +38,9 @@ definitelyEmpty :: RE l -> Bool
 definitelyEmpty Empty = True
 definitelyEmpty Stuck = False
 definitelyEmpty (Atom _) = False
-definitelyEmpty (Pipe r1 r2) = definitelyEmpty r1 || definitelyEmpty r2
+definitelyEmpty (Pipe r1 r2) = definitelyEmpty r1 && definitelyEmpty r2
 definitelyEmpty (Dot r1 r2) = definitelyEmpty r1 && definitelyEmpty r2
-definitelyEmpty (Star _) = False -- !
+definitelyEmpty (Star r) = definitelyEmpty r
 
 
 -- Brzozowski derivative of regular expression
