@@ -1,12 +1,42 @@
 module Util where
 
 import Text.Printf
+import Control.Monad.Except
 import Free.Scope
+import qualified Free.Scope as FS
 import Test.HUnit
 import Control.Monad (foldM)
+import Control.Monad.IO.Class (liftIO)
+import qualified Free.Scope as Fs
+
+
+{- Error Handling in Tests -}
+type SGTest = ExceptT String IO
+
+runSGTest :: SGTest () -> IO ()
+runSGTest test = do 
+    res <- runExceptT test
+    case res of 
+      Left msg -> assertFailure msg
+      Right r -> return r
+
+addEdge :: ( Eq l
+           , Show l )
+        => Graph l d -> Sc -> l -> Sc -> SGTest (Graph l d)
+addEdge sg src l dst = liftEither $ FS.addEdge sg src l dst
+
+addSink :: ( Eq l
+           , Eq d
+           , Show d
+           , Show l )
+         => Graph l d -> Sc -> l -> d -> SGTest (Graph l d)
+addSink sg src l d = liftEither $ FS.addSink sg src l d
+
+
+{- Assertions -}
 
 -- Applies `f` to all scope in `sg`
-iterateScopesIO ::  (Eq l, Eq d, Show l, Show d) => (Graph l d -> Sc -> IO ()) -> Graph l d -> IO ()
+iterateScopesIO ::  (Eq l, Eq d, Show l, Show d) => (Graph l d -> Sc -> SGTest ()) -> Graph l d -> SGTest ()
 iterateScopesIO f sg = do
     let s  = scopes sg
     let f' = const $ f sg
@@ -14,52 +44,52 @@ iterateScopesIO f sg = do
 
 -- scopes
 
-assertHasScope :: Graph l d -> Sc -> IO ()
-assertHasScope sg s_exp = do
+assertHasScope :: Graph l d -> Sc -> SGTest ()
+assertHasScope sg s_exp = liftIO $ do
     let s_act = scopes sg
     let msg   = printf "Expected scope %s to be part of graph, but got %s." (show s_exp) (show s_act)
     assertBool msg (s_exp <= s_act)
 
-assertNotHasScope :: Graph l d -> Sc -> IO ()
-assertNotHasScope sg s_exp = do
+assertNotHasScope :: Graph l d -> Sc -> SGTest ()
+assertNotHasScope sg s_exp = liftIO $ do
     let s_act = scopes sg
     let msg   = printf "Expected scope %s not to be part of graph, but actually has up to %s." (show s_exp) (show s_act)
     assertBool msg (s_exp > s_act)
 
 -- edges
 
-assertHasEdge :: (Eq l, Eq d, Show l, Show d) => Graph l d -> Sc -> l -> Sc -> IO ()
-assertHasEdge sg src lbl tgt = do
+assertHasEdge :: (Eq l, Eq d, Show l, Show d) => Graph l d -> Sc -> l -> Sc -> SGTest ()
+assertHasEdge sg src lbl tgt = liftIO $ do
     let e_act = entries sg src
     let msg   = printf "Expected edge %s-%s->%s to be part of graph, but got %s." (show src) (show lbl) (show tgt) (show e_act)
     assertBool msg $ (lbl, Left tgt) `elem` e_act
 
 
-assertScopeHasNoEdges :: (Eq l, Eq d, Show l, Show d) => Graph l d -> Sc -> IO ()
-assertScopeHasNoEdges sg s = do
+assertScopeHasNoEdges :: (Eq l, Eq d, Show l, Show d) => Graph l d -> Sc -> SGTest ()
+assertScopeHasNoEdges sg s = liftIO $ do
     let e_act = entries sg s
     let msg   = printf "Expected no edges for %s in the graph, but got %s." (show s) (show e_act)
     assertEqual msg [] e_act
 
 
-assertHasNoEdges :: (Eq l, Eq d, Show l, Show d) => Graph l d -> IO ()
+assertHasNoEdges :: (Eq l, Eq d, Show l, Show d) => Graph l d -> SGTest ()
 assertHasNoEdges = iterateScopesIO assertScopeHasNoEdges
 
 -- closed edge
 
-assertHasClosedEdge :: (Eq l, Eq d, Show l, Show d) => Graph l d -> Sc -> l -> IO ()
-assertHasClosedEdge sg s lbl = do
+assertHasClosedEdge :: (Eq l, Eq d, Show l, Show d) => Graph l d -> Sc -> l -> SGTest ()
+assertHasClosedEdge sg s lbl = liftIO $ do
     let c_act = clos sg s
     let msg   = printf "Expected edge %s-%s->? to be closed in graph, but got %s." (show s) (show lbl) (show c_act)
     assertBool msg $ lbl `elem` c_act
 
 
-assertScopeHasNoClosedEdges :: (Eq l, Eq d, Show l, Show d) => Graph l d -> Sc -> IO ()
-assertScopeHasNoClosedEdges sg s = do
+assertScopeHasNoClosedEdges :: (Eq l, Eq d, Show l, Show d) => Graph l d -> Sc -> SGTest ()
+assertScopeHasNoClosedEdges sg s = liftIO $ do
     let c_act = clos sg s
     let msg   = printf "Expected no closed edges for %s in the graph, but got %s." (show s) (show c_act)
     assertEqual msg [] c_act
 
 
-assertHasNoClosedEdges :: (Eq l, Eq d, Show l, Show d) => Graph l d -> IO ()
+assertHasNoClosedEdges :: (Eq l, Eq d, Show l, Show d) => Graph l d -> SGTest ()
 assertHasNoClosedEdges = iterateScopesIO assertScopeHasNoClosedEdges
