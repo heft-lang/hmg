@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Example.Compiler where
 
 import Hefty
@@ -23,7 +24,7 @@ denote (Sub e1 e2) nv = do
   minus v1 v2
 denote (LetS x e body) nv = do
   v <- denote e nv
-  llet v (\ v -> denote body (\ y -> if y == x then v else (nv y)))
+  llet v (\ v -> denote body (\ y -> if y == x then v else nv y))
 
 
 data Lit r k
@@ -46,17 +47,17 @@ instance HFunctor (Let r) where
 lit :: ( HFunctor h
        , Lift (Lit r) <| h )
     => Int -> Hefty h (r Int)
-lit i = lift $ Lit i
+lit i = liftH $ Lit i
 
 plus :: ( HFunctor h
         , Lift (Arith r) <| h )
      => r Int -> r Int -> Hefty h (r Int)
-plus r1 r2 = lift $ Plus r1 r2
+plus r1 r2 = liftH $ Plus r1 r2
 
 minus :: ( HFunctor h
          , Lift (Arith r) <| h )
       => r Int -> r Int -> Hefty h (r Int)
-minus r1 r2 = lift $ Minus r1 r2
+minus r1 r2 = liftH $ Minus r1 r2
 
 llet :: forall r x y h.
         Let r <| h
@@ -89,16 +90,15 @@ subq r1 r2 = Do $ inj $ Subq r1 r2 $ Pure ()
 eLet :: ( Functor f
         , Movq r < f )
      => Elab (Let r) f
-eLet = Alg $ \ x -> case x of
-  Let x m k -> do
-    r <- movq x
-    m r >>= k
+eLet = Alg $ \(Let x m k) -> do
+  r <- movq x
+  m r >>= k
 
 eArith :: ( Functor f
           , Movq r < f
           , Arithq r < f )
        => Elab (Lift (Arith r)) f
-eArith = Alg $ \ x -> case x of
+eArith = Alg $ \case
   Lift (Plus r1 r2 k) -> do
     r1' <- movq r1
     addq r2 r1'
@@ -130,19 +130,18 @@ pArithq = FreeAlg $ \ f i -> case f of
     "    subq " ++ pX86X r1 ++ ", " ++ pX86X r2 ++ "\n" ++ k i
 
 pLit :: FreeAlg (Lit X86X) (Int -> String)
-pLit = FreeAlg $ \ f -> case f of
-  (Lit n k) -> k (Imm n)
+pLit = FreeAlg $ \(Lit n k) -> k (Imm n)
 
 
 pNop :: FreeAlg Nop (Int -> String)
-pNop = FreeAlg $ \ f -> case f of
+pNop = FreeAlg $ \case
 
 
 -- Compiler
 
-type LVar r = Hefty (Lift (Lit r) ⊕ Lift (Arith r) ⊕ (Let r) ⊕ Lift Nop)
+type LVar r = Hefty (Lift (Lit r) ⊕ Lift (Arith r) ⊕ Let r ⊕ Lift Nop)
 
-eCompile :: Hefty (Lift (Lit r) ⊕ Lift (Arith r) ⊕ (Let r) ⊕ Lift Nop) a
+eCompile :: Hefty (Lift (Lit r) ⊕ Lift (Arith r) ⊕ Let r ⊕ Lift Nop) a
          -> Free (Lit r + Arithq r + Movq r + Nop) a
 eCompile = hfold Pure (eLift ⊕ eArith ⊕ eLet ⊕ eLift)
 
