@@ -1,68 +1,70 @@
-{-# LANGUAGE TypeApplications #-}
 module GraphConstruction where
 
-import Control.Monad.Except (liftEither)
 import Test.HUnit
-
-import Free.Scope ( emptyGraph, addScope )
-
-import Util
-import Control.Monad.RWS (liftIO)
+import Free.Scope ( Sc, emptyGraph )
+import Util hiding (assertHasEdge, assertHasNoEdges)
+import qualified Util as U
 
 data Label = Lbl1 | Lbl2 deriving (Show, Eq)
 data Data = Data deriving (Show, Eq)
 
+assertHasEdge :: Sc -> Label -> Sc -> SGTest Label Data ()
+assertHasEdge = U.assertHasEdge
 
+assertHasNoEdges :: SGTest Label Data ()
+assertHasNoEdges = U.assertHasNoEdges
 
 -- Scope addition
 
 testAddSingleScope :: IO ()
 testAddSingleScope = runSGTest $ do
-    let (s, sg) = addScope $ emptyGraph @Label @Data
-    assertHasScope sg 1
-    assertNotHasScope sg 2
-    assertHasNoEdges sg
-    assertHasNoClosedEdges sg
+    addScope
+    assertHasScope 1
+    assertNotHasScope 2
+    assertHasNoEdges
+    assertHasNoClosedEdges
 
 testAddMultipleScopes :: IO ()
 testAddMultipleScopes = runSGTest $ do
-    let (s, sg) = addScope $ snd $ addScope $ snd $ addScope $ emptyGraph @Label @Data
-    assertHasScope sg 1
-    assertHasScope sg 2
-    assertHasScope sg 3
-    assertNotHasScope sg 4
-    assertHasNoEdges sg
-    assertHasNoClosedEdges sg
+    addScope
+    addScope
+    addScope
+    assertHasScope 1
+    assertHasScope 2
+    assertHasScope 3
+    assertNotHasScope 4
+    assertHasNoEdges
+    assertHasNoClosedEdges
 
 testAddSingleEdge :: IO ()
 testAddSingleEdge = runSGTest $ do
-    let (s1, sg1) = addScope $ emptyGraph @Label @Data
-    let (s2, sg2) = addScope sg1
-    sg <- addEdge sg2 s1 Lbl1 s2
-    assertHasEdge sg s1 Lbl1 s2
-    assertHasNoClosedEdges sg
+    s1 <- addScope
+    s2 <- addScope
+    addEdge s1 Lbl1 s2
+    assertHasEdge s1 Lbl1 s2
+    assertHasNoClosedEdges
 
 -- Add multiple edges from s1 to s2 with different labels
 testAddMultipleEdges1 :: IO ()
 testAddMultipleEdges1 = runSGTest $ do
-    let (s1, sg1) = addScope $ emptyGraph @Label @Data
-    let (s2, sg2) = addScope sg1
-    sg3 <- addEdge sg2 s1 Lbl1 s2
-    sg  <- addEdge sg3 s1 Lbl2 s2
-    assertHasEdge sg s1 Lbl1 s2
-    assertHasEdge sg s1 Lbl2 s2
-    assertHasNoClosedEdges sg
+    s1 <- addScope
+    s2 <- addScope
+    addEdge s1 Lbl1 s2
+    addEdge s1 Lbl2 s2
+    assertHasEdge s1 Lbl1 s2
+    assertHasEdge s1 Lbl2 s2
+    assertHasNoClosedEdges
 
 -- Add edges from s1 to s2 and back
 testAddMultipleEdges2 :: IO ()
 testAddMultipleEdges2 = runSGTest $ do
-    let (s1, sg1) = addScope $ emptyGraph @Label @Data
-    let (s2, sg2) = addScope sg1
-    sg3 <- addEdge sg2 s1 Lbl1 s2
-    sg  <- addEdge sg3 s2 Lbl2 s1
-    assertHasEdge sg s1 Lbl1 s2
-    assertHasEdge sg s2 Lbl2 s1
-    assertHasNoClosedEdges sg
+    s1 <- addScope
+    s2 <- addScope
+    addEdge s1 Lbl1 s2
+    addEdge s2 Lbl2 s1
+    assertHasEdge s1 Lbl1 s2
+    assertHasEdge s2 Lbl2 s1
+    assertHasNoClosedEdges
 
 tests :: Test
 tests = TestList
