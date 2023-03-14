@@ -8,10 +8,11 @@ import qualified Free.Scope as FS
 import Test.HUnit hiding (Path)
 import Control.Monad (foldM)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.State.Lazy -- ( StateT, evalStateT, state )
+import Control.Monad.Trans.State.Lazy
 import qualified Free.Scope as Fs
 import Data.Regex
 
+-- Copied from higher versions of `transformers`
 modifyM :: (Monad m) => (s -> m s) -> StateT s m ()
 modifyM f = StateT $ \ s -> do
     s' <- f s
@@ -41,9 +42,11 @@ execQuery :: ( Show d , Show l , Eq l )
           -> (d -> Bool)
           -> SGTest l d [(d, l, Path s l)]
 execQuery sc re po ad = state $ \g -> swap $ FS.execQuery g sc re po ad
+
+
 {- Assertions -}
 
--- Applies `f` to all scope in the state
+-- Applies `f` to all scopes in the state
 iterateScopesIO :: (Eq l, Eq d, Show l, Show d) => (Sc -> SGTest l d ()) -> SGTest l d ()
 iterateScopesIO f = do
     g <- get
