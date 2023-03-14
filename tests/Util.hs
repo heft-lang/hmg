@@ -5,6 +5,13 @@ import Free.Scope
 import Test.HUnit
 import Control.Monad (foldM)
 
+-- Applies `f` to all scope in `sg`
+iterateScopesIO ::  (Eq l, Eq d, Show l, Show d) => (Graph l d -> Sc -> IO ()) -> Graph l d -> IO ()
+iterateScopesIO f sg = do
+    let s  = scopes sg
+    let f' = const $ f sg
+    foldM f' () [1..s]
+
 -- scopes
 
 assertHasScope :: Graph l d -> Sc -> IO ()
@@ -36,9 +43,7 @@ assertScopeHasNoEdges sg s = do
 
 
 assertHasNoEdges :: (Eq l, Eq d, Show l, Show d) => Graph l d -> IO ()
-assertHasNoEdges sg = do
-    let s = scopes sg
-    foldM (\x s' -> assertScopeHasNoEdges sg s') () [1..s]
+assertHasNoEdges = iterateScopesIO assertScopeHasNoEdges
 
 -- closed edge
 
@@ -57,6 +62,4 @@ assertScopeHasNoClosedEdges sg s = do
 
 
 assertHasNoClosedEdges :: (Eq l, Eq d, Show l, Show d) => Graph l d -> IO ()
-assertHasNoClosedEdges sg = do
-    let s = scopes sg
-    foldM (\x s' -> assertScopeHasNoClosedEdges sg s') () [1..s]
+assertHasNoClosedEdges = iterateScopesIO assertScopeHasNoClosedEdges

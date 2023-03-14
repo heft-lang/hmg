@@ -44,19 +44,21 @@ testAddSingleEdge = do
 -- Add multiple edges from s1 to s2 with different labels
 testAddMultipleEdges1 :: IO ()
 testAddMultipleEdges1 = do
-    let (s1, sg1) = addScope $ emptyGraph @Label @Data
-    let (s2, sg2) = addScope sg1
-    let err_or_sg = addEdge sg2 s1 Lbl1 s2
-    case err_or_sg of
+    case construct_sg of
         Left err -> assertFailure err
-        Right sg3 -> do
-            let err_or_sg2 = addEdge sg3 s1 Lbl2 s2
-            case err_or_sg2 of
-                Left err -> assertFailure err
-                Right sg4 -> do
-                    assertHasEdge sg4 s1 Lbl1 s2
-                    assertHasEdge sg4 s1 Lbl2 s2
-                    assertHasNoClosedEdges sg4
+        Right (sg, s1, s2) -> do
+            assertHasEdge sg s1 Lbl1 s2
+            assertHasEdge sg s1 Lbl2 s2
+            assertHasNoClosedEdges sg
+    where
+        construct_sg :: Either String (Graph Label Data, Sc, Sc)
+        construct_sg = do
+            let (s1, sg1) = addScope $ emptyGraph @Label @Data
+            let (s2, sg2) = addScope sg1
+            sg3 <- addEdge sg2 s1 Lbl1 s2
+            sg4 <- addEdge sg3 s1 Lbl2 s2
+            return (sg4, s1, s2)
+
 
 -- Add edges from s1 to s2 and back
 testAddMultipleEdges2 :: IO ()
