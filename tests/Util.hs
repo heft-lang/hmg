@@ -11,6 +11,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.State.Lazy
 import qualified Free.Scope as Fs
 import Data.Regex
+import Data.Either
 
 -- Copied from higher versions of `transformers`
 modifyM :: (Monad m) => (s -> m s) -> StateT s m ()
@@ -88,13 +89,33 @@ assertHasEdge src lbl tgt = asserts $ \g -> do
 
 assertScopeHasNoEdges :: (Eq l, Eq d, Show l, Show d) => Sc -> SGTest l d ()
 assertScopeHasNoEdges s = asserts $ \g -> do
-    let e_act = entries g s
+    let e_act = filter (isLeft . snd) $ entries g s
     let msg   = printf "Expected no edges for %s in the graph, but got %s." (show s) (show e_act)
     assertEqual msg [] e_act
 
 
 assertHasNoEdges :: (Eq l, Eq d, Show l, Show d) => SGTest l d ()
 assertHasNoEdges = iterateScopesIO assertScopeHasNoEdges
+
+
+-- sinks
+
+assertHasSink :: (Eq l, Eq d, Show l, Show d) => Sc -> l -> d -> SGTest l d ()
+assertHasSink src lbl d = asserts $ \g -> do
+    let e_act = entries g src
+    let msg   = printf "Expected edge %s-%s->%s to be part of graph, but got %s." (show src) (show lbl) (show d) (show e_act)
+    assertBool msg $ (lbl, Right d) `elem` e_act
+
+
+assertScopeHasNoSinks :: (Eq l, Eq d, Show l, Show d) => Sc -> SGTest l d ()
+assertScopeHasNoSinks s = asserts $ \g -> do
+    let e_act = filter (isRight . snd) $ entries g s
+    let msg   = printf "Expected no edges for %s in the graph, but got %s." (show s) (show e_act)
+    assertEqual msg [] e_act
+
+
+assertHasNoSinks :: (Eq l, Eq d, Show l, Show d) => SGTest l d ()
+assertHasNoSinks = iterateScopesIO assertScopeHasNoSinks
 
 -- closed edge
 
