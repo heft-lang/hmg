@@ -3,7 +3,7 @@ module Util where
 import Data.Tuple (swap)
 import Text.Printf
 import Control.Monad.Except
-import Free.Scope ( Graph(scopes, entries, clos), Sc, emptyGraph, Path, sinksOf, edgesOf )
+import Free.Scope ( Graph(scopes, entries, clos), Sc, emptyGraph, sinksOf, edgesOf, ResolvedPath )
 import qualified Free.Scope as FS
 import Test.HUnit hiding (Path)
 import Control.Monad (foldM)
@@ -42,11 +42,16 @@ addSink s l d = modifyM $ \g -> liftEither $ FS.addSink g s l d
 execQuery :: ( Show d , Show l , Eq l )
           => Sc
           -> RE l
-          -> (Path s l -> Path s l -> Bool)
+          -> (ResolvedPath l d -> ResolvedPath l d -> Bool)
           -> (d -> Bool)
-          -> SGTest l d [(d, l, Path s l)]
+          -> SGTest l d [ResolvedPath l d]
 execQuery sc re po ad = state $ \g -> swap $ FS.execQuery g sc re po ad
 
+
+{- Scope Graph Parameters -}
+
+data Label = Lbl1  | Lbl2  deriving (Show, Eq)
+data Data  = Data1 | Data2 deriving (Show, Eq)
 
 {- Assertions -}
 
@@ -83,7 +88,7 @@ assertNotHasScope s_exp = asserts $ \g -> do
 
 -- edges
 
-assertHasEdge :: (Eq l, Eq d, Show l, Show d) => Sc -> l -> Sc -> SGTest l d ()
+assertHasEdge :: Sc -> Label -> Sc -> SGTest Label Data ()
 assertHasEdge src lbl tgt = asserts $ \g -> do
     let e_act = entries g src
     let msg   = printf "Expected edge %s-%s->%s to be part of graph, but got %s." (show src) (show lbl) (show tgt) (show e_act)
@@ -117,13 +122,13 @@ assertScopeHasNoSinks s = asserts $ \g -> do
     assertEqual msg [] e_act
 
 
-assertHasNoSinks :: (Eq l, Eq d, Show l, Show d) => SGTest l d ()
+assertHasNoSinks :: SGTest Label Data ()
 assertHasNoSinks = iterateScopesIO assertScopeHasNoSinks
 
 -- closed edge
 
-assertHasClosedEdge :: (Eq l, Eq d, Show l, Show d) => Sc -> l -> SGTest l d ()
-assertHasClosedEdge s lbl = asserts $ \g -> do
+assertClosed :: (Eq l, Eq d, Show l, Show d) => Sc -> l -> SGTest l d ()
+assertClosed s lbl = asserts $ \g -> do
     let c_act = clos g s
     let msg   = printf "Expected edge %s-%s->? to be closed in graph, but got %s." (show s) (show lbl) (show c_act)
     assertBool msg $ lbl `elem` c_act

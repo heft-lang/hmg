@@ -8,21 +8,39 @@ import Free.Error
 import Data.Regex
 import Data.List
 
--- Paths
+-- Lists
 
-data Path s l
-  = Stop Sc
-  | Step Sc l (Path s l)
-  deriving Show
+lookupAll :: Eq a => a -> [(a, b)] -> [b]
+lookupAll key = map snd . filter ((== key) . fst)
 
-inPath :: Sc -> Path s l -> Bool
-inPath sc (Stop sc') = sc == sc'
-inPath sc (Step sc' _ p) = sc == sc' || inPath sc p
+-- ScopePaths
 
-lenPath :: Path s l -> Int
-lenPath (Stop _) = 0
-lenPath (Step _ _ p) = 1 + lenPath p
+data ScopePath l
+  = Start Sc
+  | Step (ScopePath l) l Sc
+  deriving (Eq, Show)
 
+dst :: ScopePath l -> Sc
+dst (Start    s) = s
+dst (Step _ _ s) = s
+
+inPath :: Sc -> ScopePath l -> Bool
+inPath sc (Start sc') = sc == sc'
+inPath sc (Step p _ sc') = sc == sc' || inPath sc p
+
+lenPath :: ScopePath l -> Int
+lenPath (Start _) = 0
+lenPath (Step p _ _) = 1 + lenPath p
+
+data ResolvedPath l d
+  = ResolvedPath (ScopePath l) l d
+  deriving (Eq, Show)
+
+dataOfPath :: ResolvedPath l d -> d
+dataOfPath (ResolvedPath _ _ d) = d
+
+lenRPath :: ResolvedPath l d -> Int
+lenRPath (ResolvedPath p _ _) = lenPath p
 
 -- Operations
 
@@ -30,7 +48,7 @@ data Scope s l d k
   = New (s -> k)
   | Edge s l s k
   | Sink s l d k
-  | Query s (RE l) (Path s l -> Path s l -> Bool) (d -> Bool) ([d] -> k)
+  | Query s (RE l) (ResolvedPath l d -> ResolvedPath l d -> Bool) (d -> Bool) ([d] -> k)
   deriving Functor
 
 new :: forall s l d f.
@@ -50,7 +68,7 @@ sink s l d = Do $ inj $ Sink @s @l @d s l d $ Pure ()
 
 query :: forall s l d f.
         Scope s l d < f
-     => s -> RE l -> (Path s l -> Path s l -> Bool) -> (d -> Bool) -> Free f [d]
+     => s -> RE l -> (ResolvedPath l d -> ResolvedPath l d -> Bool) -> (d -> Bool) -> Free f [d]
 query s re po ad = Do $ inj $ Query s re po ad Pure
 
 
@@ -140,52 +158,64 @@ execQuery :: ( Show d , Show l , Eq l )
           => Graph l d
           -> Sc
           -> RE l
-          -> (Path s l -> Path s l -> Bool)
+          -> (ResolvedPath l d -> ResolvedPath l d -> Bool)
           -> (d -> Bool)
-          -> (Graph l d, [(d, l, Path s l)])
+          -> (Graph l d, [ResolvedPath l d])
 execQuery g sc re po ad =
-  let (g', ps) = findAll g sc re ad (Stop sc)
-  in (g', shortest po ps)
+  let (g', ps) = findAll g re ad (Start sc)
+  -- in (g', shortest po ps)
+  in (g', ps)
   where
-    shortest :: (Path s l -> Path s l -> Bool) -> [(d, l, Path s l)] -> [(d, l, Path s l)]
+    shortest :: (ResolvedPath l d -> ResolvedPath l d -> Bool) -> [ResolvedPath l d] -> [ResolvedPath l d]
     shortest _  [] = []
     shortest po (dp:dps) = go dp [] dps
       where
-        go (d, l, p) a [] = (d, l, p):a
-        go (d, l, p) a ((d',l',p'):dps) =
-          if po p' p
+        go p a [] = p:a
+        go p a (p':dps) =
+          if p' `po` p
           then if po p p'
-               then go (d, l, p) ((d',l',p'):a) dps
-               else go (d', l', p') [] dps
-          else go (d, l, p) a dps
+               then go p (p':a) dps
+               else go p' [] dps
+          else go p a dps
 
+    resolveLbl :: (Eq l, Show l, Show d)
+               => ScopePath l
+               -> RE l
+               -> (d -> Bool)
+               -> l
+               -> Graph l d
+               -> (Graph l d, [ResolvedPath l d])
+    resolveLbl p re_old ad l g =
+      let sc = dst p
+          re = derive l re_old
+          -- declarations in current scope
+          sinks = if possiblyEmpty re then map (ResolvedPath p l) . filter ad . lookupAll l $ sinksOf g $ dst p else []
+          -- targets of traversible edges (filtering scopes in `p`: prevent cycles)
+          tgts = filter (not . flip inPath p) . lookupAll l $ edgesOf g $ dst p
+          -- close 
+          g' = g { clos = \ sc' -> if sc == sc' then l : clos g sc else clos g sc' }
+          -- results of residual queries over `tgts`
+          (g'', r) = foldr (\s (g, p') ->
+                              let (g', p'') = findAll g re ad (Step p l s) in
+                                (g', p' ++ p'')
+                           )
+                           (g', sinks)
+                           tgts
+                           in
+          (g'', r)
 
     findAll :: (Show l, Show d, Eq l)
-            => Graph l d -> Sc -> RE l -> (d -> Bool) -> Path s l -> (Graph l d, [(d, l, Path s l)])
-    findAll g sc re ad p =
-      if definitelyEmpty re
-      then ( g
-           , map (\ (l, d) -> (d, l, p))
-           $ filter (\ (_, d) -> ad d) $ sinksOf g sc )
-      else let fr = frontier re
-               g' = g { clos = \ sc' -> if sc == sc'
-                        then fr `union` clos g sc
-                        else clos g sc' }
-      in foldr
-           (\ l (g', rs) ->
-               foldr
-                   (\ (_, r) (g', rs') -> case r of
-                       Left sc' ->
-                         if sc' `inPath` p -- avoid cyclic paths
-                         then (g', rs')
-                         else
-                           let (g'', rs'') = findAll g' sc' (derive l re) ad (Step sc' l p)
-                           in (g'', rs' ++ rs'')
-                       Right d -> if ad d then (g', (d, l, p):rs') else (g', rs'))
-                   (g', rs)
-               $ filter (\ (l', _) -> l' == l) (entries g sc))
-           (g', [])
-           fr
+            => Graph l d
+            -> RE l
+            -> (d -> Bool)
+            -> ScopePath l
+            -> (Graph l d, [ResolvedPath l d])
+    findAll g re ad p = foldr ( \l (g, p') ->
+                                  let (g', p'') = resolveLbl p re ad l g in
+                                    (g', p' ++ p'')
+                              )
+                              (g, [])
+                              (frontier re)
 
 
 hScope :: ( Eq l, Show l
@@ -209,6 +239,6 @@ hScope = Handler_
           Right g' -> k g'
       Query sc re po ad k ->
         let (g', rs) = execQuery g sc re po ad
-        in k (map (\ (d,_,_) -> d) rs) g')
+        in k (map dataOfPath rs) g')
 
 

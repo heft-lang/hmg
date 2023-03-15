@@ -92,3 +92,5 @@ test-suite tests
     other-modules:
         Util
         GraphConstruction
+        Resolution
+        RETest

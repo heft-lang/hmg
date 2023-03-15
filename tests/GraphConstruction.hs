@@ -4,17 +4,7 @@ module GraphConstruction where
 
 import Test.HUnit
 import Free.Scope ( Sc, emptyGraph )
-import Util hiding (assertHasEdge, assertHasNoEdges)
-import qualified Util as U
-
-data Label = Lbl1 | Lbl2 deriving (Show, Eq)
-data Data = Data deriving (Show, Eq)
-
-assertHasEdge :: Sc -> Label -> Sc -> SGTest Label Data ()
-assertHasEdge = U.assertHasEdge
-
-assertHasNoEdges :: SGTest Label Data ()
-assertHasNoEdges = U.assertHasNoEdges
+import Util
 
 -- Scope addition
 
@@ -88,18 +78,18 @@ testAddSingleSink :: IO ()
 testAddSingleSink = runSGTest $ do
     s1 <- addScope
     s2 <- addScope
-    addSink s1 Lbl1 Data
-    assertHasSink s1 Lbl1 Data
+    addSink s1 Lbl1 Data1
+    assertHasSink s1 Lbl1 Data1
     assertHasNoEdges
     assertHasNoClosedEdges
 
 testAddMultipleSinks1 :: IO ()
 testAddMultipleSinks1 = runSGTest $ do
     s1 <- addScope
-    addSink s1 Lbl1 Data
-    addSink s1 Lbl2 Data
-    assertHasSink s1 Lbl1 Data
-    assertHasSink s1 Lbl2 Data
+    addSink s1 Lbl1 Data1
+    addSink s1 Lbl2 Data1
+    assertHasSink s1 Lbl1 Data1
+    assertHasSink s1 Lbl2 Data1
     assertHasNoEdges
     assertHasNoClosedEdges
 
@@ -107,19 +97,19 @@ testAddMultipleSinks2 :: IO ()
 testAddMultipleSinks2 = runSGTest $ do
     s1 <- addScope
     s2 <- addScope
-    addSink s1 Lbl1 Data
-    addSink s2 Lbl1 Data
-    assertHasSink s1 Lbl1 Data
-    assertHasSink s2 Lbl1 Data
+    addSink s1 Lbl1 Data1
+    addSink s2 Lbl1 Data1
+    assertHasSink s1 Lbl1 Data1
+    assertHasSink s2 Lbl1 Data1
     assertHasNoEdges
     assertHasNoClosedEdges
 
 testDuplicateSink :: IO ()
 testDuplicateSink = expectFailure "Duplicate sink" $ do
     s1 <- addScope
-    addSink s1 Lbl1 Data
-    addSink s1 Lbl1 Data
-    assertHasSink s1 Lbl1 Data
+    addSink s1 Lbl1 Data1
+    addSink s1 Lbl1 Data1
+    assertHasSink s1 Lbl1 Data1
 
 tests :: Test
 tests = TestList
