@@ -25,6 +25,9 @@ type SGTest l d v = StateT (Graph l d) (ExceptT String IO) v
 runSGTest :: SGTest l d () -> IO ()
 runSGTest test = runExceptT (evalStateT test emptyGraph) >>= either assertFailure return
 
+expectFailure :: String -> SGTest l d () -> IO ()
+expectFailure msg test = runExceptT (evalStateT test emptyGraph) >>= either (const $ return ()) (\g -> assertFailure msg)
+
 addScope :: SGTest l d Sc
 addScope = state FS.addScope
 

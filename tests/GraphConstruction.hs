@@ -97,11 +97,18 @@ testAddMultipleSinks2 = runSGTest $ do
     s1 <- addScope
     s2 <- addScope
     addSink s1 Lbl1 Data
-    addSink s2 Lbl2 Data
+    addSink s2 Lbl1 Data
     assertHasSink s1 Lbl1 Data
-    assertHasSink s2 Lbl2 Data
+    assertHasSink s2 Lbl1 Data
     assertHasNoEdges
     assertHasNoClosedEdges
+
+testDuplicateSink :: IO ()
+testDuplicateSink = expectFailure "Duplicate sink" $ do
+    s1 <- addScope
+    addSink s1 Lbl1 Data
+    assertHasSink s1 Lbl1 Data
+    assertHasSink s1 Lbl1 Data
 
 tests :: Test
 tests = TestList
@@ -112,4 +119,5 @@ tests = TestList
     , "testAddMultipleEdges2" ~: testAddMultipleEdges2
     , "testAddSingleSink"     ~: testAddSingleSink
     , "testAddMultipleSinks1" ~: testAddMultipleSinks1
-    , "testAddMultipleSinks2" ~: testAddMultipleSinks2 ]
+    , "testAddMultipleSinks2" ~: testAddMultipleSinks2
+    , "testDuplicateSink"     ~: testDuplicateSink ]
