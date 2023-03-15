@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use camelCase" #-}
 module GraphConstruction where
 
 import Test.HUnit
@@ -46,7 +48,6 @@ testAddSingleEdge = runSGTest $ do
     assertHasEdge s1 Lbl1 s2
     assertHasNoClosedEdges
 
--- Add multiple edges from s1 to s2 with different labels
 testAddMultipleEdges1 :: IO ()
 testAddMultipleEdges1 = runSGTest $ do
     s1 <- addScope
@@ -58,7 +59,6 @@ testAddMultipleEdges1 = runSGTest $ do
     assertHasNoSinks
     assertHasNoClosedEdges
 
--- Add edges from s1 to s2 and back
 testAddMultipleEdges2 :: IO ()
 testAddMultipleEdges2 = runSGTest $ do
     s1 <- addScope
@@ -70,6 +70,19 @@ testAddMultipleEdges2 = runSGTest $ do
     assertHasNoSinks
     assertHasNoClosedEdges
 
+testAddMultipleEdges_SameLabel_DifferentTarget :: IO ()
+testAddMultipleEdges_SameLabel_DifferentTarget = runSGTest $ do
+    s1 <- addScope
+    s2 <- addScope
+    s3 <- addScope
+    addEdge s1 Lbl1 s2
+    addEdge s1 Lbl1 s3
+    assertHasEdge s1 Lbl1 s2
+    assertHasEdge s1 Lbl1 s3
+    assertHasNoSinks
+    assertHasNoClosedEdges
+
+-- Sinks
 
 testAddSingleSink :: IO ()
 testAddSingleSink = runSGTest $ do
@@ -80,7 +93,6 @@ testAddSingleSink = runSGTest $ do
     assertHasNoEdges
     assertHasNoClosedEdges
 
--- Add multiple edges from s1 to s2 with different labels
 testAddMultipleSinks1 :: IO ()
 testAddMultipleSinks1 = runSGTest $ do
     s1 <- addScope
@@ -91,7 +103,6 @@ testAddMultipleSinks1 = runSGTest $ do
     assertHasNoEdges
     assertHasNoClosedEdges
 
--- Add edges from s1 to s2 and back
 testAddMultipleSinks2 :: IO ()
 testAddMultipleSinks2 = runSGTest $ do
     s1 <- addScope
@@ -107,17 +118,18 @@ testDuplicateSink :: IO ()
 testDuplicateSink = expectFailure "Duplicate sink" $ do
     s1 <- addScope
     addSink s1 Lbl1 Data
-    assertHasSink s1 Lbl1 Data
+    addSink s1 Lbl1 Data
     assertHasSink s1 Lbl1 Data
 
 tests :: Test
 tests = TestList
-    [ "testAddSingleScope"    ~: testAddSingleScope
-    , "testAddMultipleScopes" ~: testAddMultipleScopes
-    , "testAddSingleEdge"     ~: testAddSingleEdge
-    , "testAddMultipleEdges1" ~: testAddMultipleEdges1
-    , "testAddMultipleEdges2" ~: testAddMultipleEdges2
-    , "testAddSingleSink"     ~: testAddSingleSink
-    , "testAddMultipleSinks1" ~: testAddMultipleSinks1
-    , "testAddMultipleSinks2" ~: testAddMultipleSinks2
-    , "testDuplicateSink"     ~: testDuplicateSink ]
+    [ "testAddSingleScope"                              ~: testAddSingleScope
+    , "testAddMultipleScopes"                           ~: testAddMultipleScopes
+    , "testAddSingleEdge"                               ~: testAddSingleEdge
+    , "testAddMultipleEdges1"                           ~: testAddMultipleEdges1
+    , "testAddMultipleEdges2"                           ~: testAddMultipleEdges2
+    , "testAddSingleSink"                               ~: testAddSingleSink
+    , "testAddMultipleSinks1"                           ~: testAddMultipleSinks1
+    , "testAddMultipleSinks2"                           ~: testAddMultipleSinks2
+    , "testDuplicateSink"                               ~: testDuplicateSink
+    , "testAddMultipleEdges_SameLabel_DifferentTarget"  ~: testAddMultipleEdges_SameLabel_DifferentTarget ]

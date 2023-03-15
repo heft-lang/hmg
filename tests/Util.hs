@@ -3,7 +3,7 @@ module Util where
 import Data.Tuple (swap)
 import Text.Printf
 import Control.Monad.Except
-import Free.Scope ( Graph(scopes, entries, clos), Sc, emptyGraph, Path )
+import Free.Scope ( Graph(scopes, entries, clos), Sc, emptyGraph, Path, sinksOf, edgesOf )
 import qualified Free.Scope as FS
 import Test.HUnit hiding (Path)
 import Control.Monad (foldM)
@@ -26,7 +26,7 @@ runSGTest :: SGTest l d () -> IO ()
 runSGTest test = runExceptT (evalStateT test emptyGraph) >>= either assertFailure return
 
 expectFailure :: String -> SGTest l d () -> IO ()
-expectFailure msg test = runExceptT (evalStateT test emptyGraph) >>= either (const $ return ()) (\g -> assertFailure msg)
+expectFailure msg test = runExceptT (evalStateT test emptyGraph) >>= either (const $ return ()) (const $ assertFailure msg)
 
 addScope :: SGTest l d Sc
 addScope = state FS.addScope
@@ -63,7 +63,7 @@ threadState :: s -> IO () -> ExceptT String IO ((), s)
 threadState g m = liftIO $ m >>= \v -> return (v, g)
 
 asserts :: (Graph l d -> IO ()) -> SGTest l d ()
-asserts f = modifyM $ \g -> liftIO $ f g >>= \u -> return g
+asserts f = modifyM $ \g -> liftIO $ f g >> return g
 
 assertHasScope' :: Sc -> SGTest l d ()
 assertHasScope' s = asserts $ \g -> do
@@ -92,7 +92,7 @@ assertHasEdge src lbl tgt = asserts $ \g -> do
 
 assertScopeHasNoEdges :: (Eq l, Eq d, Show l, Show d) => Sc -> SGTest l d ()
 assertScopeHasNoEdges s = asserts $ \g -> do
-    let e_act = filter (isLeft . snd) $ entries g s
+    let e_act = edgesOf g s
     let msg   = printf "Expected no edges for %s in the graph, but got %s." (show s) (show e_act)
     assertEqual msg [] e_act
 
@@ -112,7 +112,7 @@ assertHasSink src lbl d = asserts $ \g -> do
 
 assertScopeHasNoSinks :: (Eq l, Eq d, Show l, Show d) => Sc -> SGTest l d ()
 assertScopeHasNoSinks s = asserts $ \g -> do
-    let e_act = filter (isRight . snd) $ entries g s
+    let e_act = sinksOf g s
     let msg   = printf "Expected no edges for %s in the graph, but got %s." (show s) (show e_act)
     assertEqual msg [] e_act
 
