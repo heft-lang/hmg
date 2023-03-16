@@ -24,23 +24,23 @@ frontier (Dot r1 r2)  = if possiblyEmpty r1
                         else frontier r1    
 frontier (Star r) = frontier r
 
--- Check if regular expression is possibly the empty language
+-- Check if regular expression matches the empty word
 possiblyEmpty :: RE l -> Bool
-possiblyEmpty Empty = True
-possiblyEmpty Stuck = False
-possiblyEmpty (Atom _) = False
-possiblyEmpty (Pipe r1 r2) = possiblyEmpty r1 || possiblyEmpty r2
-possiblyEmpty (Dot r1 r2) = possiblyEmpty r1 && possiblyEmpty r2
-possiblyEmpty (Star _) = True
+possiblyEmpty Empty          = True
+possiblyEmpty Stuck          = False
+possiblyEmpty (Atom _)       = False
+possiblyEmpty (Pipe r1 r2)   = possiblyEmpty r1 || possiblyEmpty r2
+possiblyEmpty (Dot r1 r2)    = possiblyEmpty r1 && possiblyEmpty r2
+possiblyEmpty (Star _)       = True
 
--- Check if regular expression is definitely the empty language
+-- Check if regular expression only matches the empty word
 definitelyEmpty :: RE l -> Bool
-definitelyEmpty Empty = True
-definitelyEmpty Stuck = False
-definitelyEmpty (Atom _) = False
+definitelyEmpty Empty        = True
+definitelyEmpty Stuck        = False
+definitelyEmpty (Atom _)     = False
 definitelyEmpty (Pipe r1 r2) = definitelyEmpty r1 && definitelyEmpty r2
-definitelyEmpty (Dot r1 r2) = definitelyEmpty r1 && definitelyEmpty r2
-definitelyEmpty (Star r) = definitelyEmpty r
+definitelyEmpty (Dot r1 r2)  = definitelyEmpty r1 && definitelyEmpty r2
+definitelyEmpty (Star r)     = definitelyEmpty r
 
 -- Brzozowski derivative of regular expression
 -- From https://www.ccs.neu.edu/home/turon/re-deriv.pdf, page 5

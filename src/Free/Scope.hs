@@ -45,13 +45,15 @@ dataOfPath (ResolvedPath _ _ d) = d
 lenRPath :: ResolvedPath l d -> Int
 lenRPath (ResolvedPath p _ _) = lenPath p
 
+type PathOrder l d = ResolvedPath l d -> ResolvedPath l d -> Bool
+
 -- Operations
 
 data Scope s l d k
   = New (s -> k)
   | Edge s l s k
   | Sink s l d k
-  | Query s (RE l) (ResolvedPath l d -> ResolvedPath l d -> Bool) (d -> Bool) ([d] -> k)
+  | Query s (RE l) (PathOrder l d) (d -> Bool) ([d] -> k)
   deriving Functor
 
 new :: forall s l d f.
@@ -71,7 +73,7 @@ sink s l d = Do $ inj $ Sink @s @l @d s l d $ Pure ()
 
 query :: forall s l d f.
         Scope s l d < f
-     => s -> RE l -> (ResolvedPath l d -> ResolvedPath l d -> Bool) -> (d -> Bool) -> Free f [d]
+     => s -> RE l -> PathOrder l d -> (d -> Bool) -> Free f [d]
 query s re po ad = Do $ inj $ Query s re po ad Pure
 
 
@@ -161,13 +163,13 @@ execQuery :: ( Show d , Show l , Eq l, Eq d )
           => Graph l d
           -> Sc
           -> RE l
-          -> (ResolvedPath l d -> ResolvedPath l d -> Bool)
+          -> PathOrder l d
           -> (d -> Bool)
           -> (Graph l d, [ResolvedPath l d])
 execQuery g sc re po ad = mapSnd (shortest po) $ findAll g re ad $ Start sc
   where
     -- derived from https://hackage.haskell.org/package/partial-order-0.2.0.0/docs/src/Data.PartialOrd.html#minima
-    shortest :: (Eq l, Eq d) => (ResolvedPath l d -> ResolvedPath l d -> Bool) -> [ResolvedPath l d] -> [ResolvedPath l d]
+    shortest :: (Eq l, Eq d) => PathOrder l d -> [ResolvedPath l d] -> [ResolvedPath l d]
     shortest po ps = nub $ filter isExtremal ps
       where
         isExtremal p = not $ any (`po` p) $ filter (/= p) ps

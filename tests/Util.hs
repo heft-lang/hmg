@@ -6,7 +6,7 @@ import Control.Monad.Except
 import Free.Scope ( Graph(scopes, entries, clos), Sc, emptyGraph, sinksOf, edgesOf, ResolvedPath )
 import qualified Free.Scope as FS
 import Test.HUnit hiding (Path)
-import Control.Monad (foldM)
+import Control.Monad (foldM, (>=>))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.State.Lazy
 import qualified Free.Scope as Fs
@@ -15,9 +15,7 @@ import Data.Either
 
 -- Copied from higher versions of `transformers`
 modifyM :: (Monad m) => (s -> m s) -> StateT s m ()
-modifyM f = StateT $ \ s -> do
-    s' <- f s
-    return ((), s')
+modifyM f = StateT $ f >=> return . (,) ()
 
 {- Define SGTest which has the scope graph as implicit state + support for failure -}
 type SGTest l d v = StateT (Graph l d) (ExceptT String IO) v
@@ -39,7 +37,7 @@ addSink :: (Eq d, Show d,
             => Sc -> l -> d -> SGTest l d ()
 addSink s l d = modifyM $ \g -> liftEither $ FS.addSink g s l d
 
-execQuery :: ( Show d , Show l , Eq l, Eq d )
+execQuery :: ( Show l , Show d , Eq l, Eq d )
           => Sc
           -> RE l
           -> (ResolvedPath l d -> ResolvedPath l d -> Bool)
@@ -133,6 +131,11 @@ assertClosed s lbl = asserts $ \g -> do
     let msg   = printf "Expected edge %s-%s->? to be closed in graph, but got %s." (show s) (show lbl) (show c_act)
     assertBool msg $ lbl `elem` c_act
 
+assertOpen :: (Eq l, Eq d, Show l, Show d) => Sc -> l -> SGTest l d ()
+assertOpen s lbl = asserts $ \g -> do
+    let c_act = clos g s
+    let msg   = printf "Expected edge %s-%s->? to be open in graph, but got %s." (show s) (show lbl) (show c_act)
+    assertBool msg $ lbl `notElem` c_act
 
 assertScopeHasNoClosedEdges :: (Eq l, Eq d, Show l, Show d) => Sc -> SGTest l d ()
 assertScopeHasNoClosedEdges s = asserts $ \g -> do
