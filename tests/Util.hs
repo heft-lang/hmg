@@ -39,7 +39,7 @@ addSink :: (Eq d, Show d,
             => Sc -> l -> d -> SGTest l d ()
 addSink s l d = modifyM $ \g -> liftEither $ FS.addSink g s l d
 
-execQuery :: ( Show d , Show l , Eq l )
+execQuery :: ( Show d , Show l , Eq l, Eq d )
           => Sc
           -> RE l
           -> (ResolvedPath l d -> ResolvedPath l d -> Bool)

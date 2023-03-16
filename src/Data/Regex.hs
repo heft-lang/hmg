@@ -59,3 +59,6 @@ derive l (Dot r1 r2)
   | possiblyEmpty r1   = Pipe (Dot (derive l r1) r2) $ derive l r2
   | otherwise          = Dot (derive l r1) r2
 derive l (Star r) = Dot (derive l r) (Star r)
+
+match :: Eq l => [l] -> RE l -> Bool
+match w r = possiblyEmpty $ foldl (flip derive) r w

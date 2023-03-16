@@ -8,10 +8,13 @@ import Free.Error
 import Data.Regex
 import Data.List
 
--- Lists
+-- Lists/Tuples
 
 lookupAll :: Eq a => a -> [(a, b)] -> [b]
 lookupAll key = map snd . filter ((== key) . fst)
+
+mapSnd :: (b -> c) -> (a,b) -> (a,c)
+mapSnd f (a,b) = (a, f b)
 
 -- ScopePaths
 
@@ -154,37 +157,21 @@ edgesOf g sc = concatMap (\ (l, e) -> either
                      (const [])
                      e) (entries g sc)
 
-execQuery :: ( Show d , Show l , Eq l )
+execQuery :: ( Show d , Show l , Eq l, Eq d )
           => Graph l d
           -> Sc
           -> RE l
           -> (ResolvedPath l d -> ResolvedPath l d -> Bool)
           -> (d -> Bool)
           -> (Graph l d, [ResolvedPath l d])
-execQuery g sc re po ad =
-  let (g', ps) = findAll g re ad (Start sc)
-  -- in (g', shortest po ps)
-  in (g', ps)
+execQuery g sc re po ad = mapSnd (shortest po) $ findAll g re ad $ Start sc
   where
-    shortest :: (ResolvedPath l d -> ResolvedPath l d -> Bool) -> [ResolvedPath l d] -> [ResolvedPath l d]
-    shortest _  [] = []
-    shortest po (dp:dps) = go dp [] dps
+    -- derived from https://hackage.haskell.org/package/partial-order-0.2.0.0/docs/src/Data.PartialOrd.html#minima
+    shortest :: (Eq l, Eq d) => (ResolvedPath l d -> ResolvedPath l d -> Bool) -> [ResolvedPath l d] -> [ResolvedPath l d]
+    shortest po ps = nub $ filter isExtremal ps
       where
-        go p a [] = p:a
-        go p a (p':dps) =
-          if p' `po` p
-          then if po p p'
-               then go p (p':a) dps
-               else go p' [] dps
-          else go p a dps
+        isExtremal p = not $ any (`po` p) $ filter (/= p) ps
 
-    resolveLbl :: (Eq l, Show l, Show d)
-               => ScopePath l
-               -> RE l
-               -> (d -> Bool)
-               -> l
-               -> Graph l d
-               -> (Graph l d, [ResolvedPath l d])
     resolveLbl p re_old ad l g =
       let sc = dst p
           re = derive l re_old
@@ -192,31 +179,21 @@ execQuery g sc re po ad =
           sinks = if possiblyEmpty re then map (ResolvedPath p l) . filter ad . lookupAll l $ sinksOf g $ dst p else []
           -- targets of traversible edges (filtering scopes in `p`: prevent cycles)
           tgts = filter (not . flip inPath p) . lookupAll l $ edgesOf g $ dst p
-          -- close 
-          g' = g { clos = \ sc' -> if sc == sc' then l : clos g sc else clos g sc' }
-          -- results of residual queries over `tgts`
-          (g'', r) = foldr (\s (g, p') ->
-                              let (g', p'') = findAll g re ad (Step p l s) in
-                                (g', p' ++ p'')
-                           )
-                           (g', sinks)
-                           tgts
-                           in
-          (g'', r)
+          -- close `l` in `g` if not already closed
+          g' = if l `elem` clos g sc
+               then g
+               else g { clos = \ sc' -> if sc == sc'
+                                        then l : clos g sc
+                                        else clos g sc'
+                      }
+      in  -- results of residual queries over `tgts`
+          foldr find (g', sinks) tgts
+        where
+          find s (g, p') = mapSnd (p' ++) $ findAll g re ad $ Step p l s
 
-    findAll :: (Show l, Show d, Eq l)
-            => Graph l d
-            -> RE l
-            -> (d -> Bool)
-            -> ScopePath l
-            -> (Graph l d, [ResolvedPath l d])
-    findAll g re ad p = foldr ( \l (g, p') ->
-                                  let (g', p'') = resolveLbl p re ad l g in
-                                    (g', p' ++ p'')
-                              )
-                              (g, [])
-                              (frontier re)
-
+    findAll g re ad p = foldr find (g, []) $ frontier re
+      where
+        find l (g, p') = mapSnd (p' ++) $ resolveLbl p re ad l g
 
 hScope :: ( Eq l, Show l
           , Eq d, Show d
