@@ -3,7 +3,7 @@ module Hefty.Except where
 import Free
 import Hefty
 import Elab
-import Algebraic.Abort
+import Free.Abort
 
 data Except f k
   = forall a. Catch (f a) (f a) (a -> k)
@@ -33,7 +33,7 @@ eExcept :: forall f.
         => Elab Except f
 eExcept = Alg $ \ x -> case x of
   Catch m1 m2 k -> do
-    v <- hup hAbort m1
+    v <- hup (handle hAbort) m1
     case v of
       Just x -> k x
       Nothing -> m2 >>= k
