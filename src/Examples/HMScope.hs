@@ -119,7 +119,7 @@ tc (Let x e body) sc t = do
   ds <- query
           sc
           ((Star wildcard) `Dot` Atom D)
-          (\ p1 p2 -> lenPath p1 < lenPath p2)
+          (\ p1 p2 -> lenRPath p1 < lenRPath p2)
           (\ (_ :: Decl) -> True)
   st' <- generalize (concat $ map (\ (Decl _ t) -> fv t) ds) st
   sc' <- new
